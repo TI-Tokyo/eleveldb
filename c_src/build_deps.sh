@@ -8,7 +8,7 @@ if [ `uname -s` = 'SunOS' -a "${POSIX_SHELL}" != "true" ]; then
 fi
 unset POSIX_SHELL # clear it so if we invoke other scripts, they run as ksh as well
 
-LEVELDB_VSN="2.1.3"
+LEVELDB_VSN="2.0.10-graviton2"
 
 SNAPPY_VSN="1.0.4"
 
@@ -21,6 +21,19 @@ if [ `basename $PWD` != "c_src" ]; then
 fi
 
 BASEDIR="$PWD"
+
+case `uname -m` in
+    aarch64)
+        if [ `uname` = "Linux" ]; then
+            CFLAGS=${CFLAGS/-m32/}
+            CFLAGS=${CFLAGS/-m64/}
+            CFLAGS="$CFLAGS -D__aarch64__"
+            CXXFLAGS=${CXXFLAGS/-m32/}
+            CXXFLAGS=${CXXFLAGS/-m64/}
+            CXXFLAGS="$CXXFLAGS -D__aarch64__"
+        fi
+esac
+
 
 # detecting gmake and if exists use it
 # if not use make
@@ -55,7 +68,7 @@ case "$1" in
 
     get-deps)
         if [ ! -d leveldb ]; then
-            git clone git://github.com/basho/leveldb
+            git clone git://github.com/TI-Tokyo/leveldb
             (cd leveldb && git checkout $LEVELDB_VSN)
         fi
         ;;
@@ -63,7 +76,9 @@ case "$1" in
     *)
         if [ ! -d snappy-$SNAPPY_VSN ]; then
             tar -xzf snappy-$SNAPPY_VSN.tar.gz
-            (cd snappy-$SNAPPY_VSN && ./configure --prefix=$BASEDIR/system --libdir=$BASEDIR/system/lib --with-pic)
+            (cd snappy-$SNAPPY_VSN && ./configure --prefix=$BASEDIR/system --libdir=$BASEDIR/system/lib \
+                                                  --build=aarch64-unknown-linux-gnu --host=aarch64-unknown-linux-gnu \
+                                                  --with-pic)
         fi
 
         (cd snappy-$SNAPPY_VSN && $MAKE && $MAKE install)
@@ -75,7 +90,7 @@ case "$1" in
         export LEVELDB_VSN="$LEVELDB_VSN"
 
         if [ ! -d leveldb ]; then
-            git clone git://github.com/basho/leveldb
+            git clone git://github.com/TI-Tokyo/leveldb
             (cd leveldb && git checkout $LEVELDB_VSN)
         fi
 
