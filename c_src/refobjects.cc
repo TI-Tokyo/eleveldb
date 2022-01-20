@@ -303,6 +303,7 @@ DbObject::~DbObject()
 
         delete m_DbOptions;
         m_DbOptions = NULL;
+
     }   // if
 
     return;

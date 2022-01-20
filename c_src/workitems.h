@@ -27,6 +27,10 @@
 
 #include "leveldb/db.h"
 #include "leveldb/write_batch.h"
+#include "extractor.h"
+#include "filter.h"
+#include "Encoding.h"
+
 #define LEVELDB_PLATFORM_POSIX
 #include "port/port.h"
 #include "util/mutexlock.h"
@@ -271,7 +275,7 @@ protected:
 
 
 /**
- * Background object for async databass close
+ * Background object for async database close
  */
 
 class CloseTask : public WorkTask
@@ -336,6 +340,159 @@ private:
 
 };  // class DestroyTask
 
+//=======================================================================
+// An object for storing range_scan options
+//=======================================================================
+
+struct RangeScanOptions {
+
+    // Byte-level controls for batching/ack
+
+    size_t max_unacked_bytes;
+    size_t low_bytes;
+    size_t max_batch_bytes;
+
+    // Max number of items to return. Zero means unlimited.
+
+    size_t limit;
+
+    // Include the start key in streaming iteration?
+
+    bool start_inclusive;
+
+    // Include the end key in streaming iteration?
+
+    bool end_inclusive;
+
+    // Read options
+
+    bool fill_cache;
+    bool verify_checksums;
+
+    // Filter options
+
+    ERL_NIF_TERM rangeFilterSpec_;
+    ErlNifEnv* env_;
+    bool useRangeFilter_;
+
+    RangeScanOptions();
+    ~RangeScanOptions();
+
+    //------------------------------------------------------------
+    // Sanity-check filter options
+    //------------------------------------------------------------
+
+    void checkOptions();
+
+};  // struct RangeScanOptions
+
+class RangeScanTask : public WorkTask
+{
+public:
+
+    // Used to coordinate production and consumption of batches of data.
+    // Producers acknowledge each batch received. Consumers block when the
+    // unacked limit has been reached and need to be woken up by the consumer.
+    // When consumers die, the ref count is decremented and that will signal
+    // the producer to go away too.
+
+    class SyncObject : public RefObject {
+    public:
+        explicit SyncObject(const RangeScanOptions & opts);
+        ~SyncObject();
+
+        // True if only one side (producer or consumer) alive.
+
+        inline bool SingleOwned() { return( 1 == GetRefCount()); }
+
+        // Adds number of bytes sent to count.
+        // Will block if count exceeds max waiting for the other
+        // side to ack some and take it under the limit or for the other
+        // side to shut down.
+
+        void AddBytes(uint32_t n);
+
+        void AckBytes(uint32_t n);
+        bool AckBytesRet(uint32_t n);
+
+        // Should be called when the Erlang handle is garbage collected
+        // so no process is there to consume the output.
+
+        void MarkConsumerDead();
+
+        bool IsConsumerDead() const;
+
+    private:
+        const uint32_t max_bytes_;
+        const uint32_t low_bytes_;
+        volatile uint32_t num_bytes_;
+        volatile bool producer_sleeping_;
+
+        // Set if producer filled up but consumer acked before
+        // producer went to sleep. Producer should abort going to
+        // sleep upon seeing this set.
+
+        volatile bool pending_signal_;
+        volatile bool consumer_dead_;
+        volatile bool crossed_under_max_;
+
+        ErlNifMutex* mutex_;
+        ErlNifCond*  cond_;
+    };
+
+    struct SyncHandle {
+        SyncObject* sync_obj_;
+    };
+
+    RangeScanTask(ErlNifEnv* caller_env,
+                  ERL_NIF_TERM caller_ref,
+                  DbObjectPtr_t & _db_handle,
+                  const std::string& start_key,
+                  const std::string* end_key,
+                  RangeScanOptions&  options,
+                  SyncObject* sync_obj);
+
+    virtual ~RangeScanTask();
+
+    static void CreateSyncHandleType(ErlNifEnv* env);
+    static SyncHandle* CreateSyncHandle(const RangeScanOptions & options);
+    static SyncHandle* RetrieveSyncHandle(ErlNifEnv* env, ERL_NIF_TERM term);
+    static void SyncHandleResourceCleanup(ErlNifEnv* env, void* arg);
+
+    void sendMsg(ErlNifEnv* msg_env, ERL_NIF_TERM atom, ErlNifPid pid);
+    void sendMsg(ErlNifEnv* msg_env, ERL_NIF_TERM atom, ErlNifPid pid, std::string msg);
+
+    int VarintLength(uint64_t v);
+    char* EncodeVarint64(char* dst, uint64_t v);
+    void send_streaming_batch(ErlNifPid* pid, ErlNifEnv* msg_env, ERL_NIF_TERM ref_term,
+                              ErlNifBinary* bin);
+
+protected:
+
+    virtual work_result DoWork();
+
+    RangeScanOptions options_;
+    std::string start_key_;
+    std::string end_key_;
+    bool has_end_key_;
+    SyncObject* sync_obj_;
+    ExpressionNode<bool>* range_filter_;
+
+    // RangeScanTask::extractorMap_ contains a map of allocated
+    // extractors for valid encodings.  
+    
+    ExtractorMap extractorMap_;
+
+    // RangeScanTask::extractor_ is just a temporary pointer that will
+    // point to the right extractor for the current data record
+    
+    Extractor* extractor_;
+
+private:
+
+    static ErlNifResourceType* sync_handle_resource_;
+
+};  // class RangeScanTask
 
 
 } // namespace eleveldb

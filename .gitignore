@@ -2,8 +2,8 @@
 deps/*
 priv/*
 *.o
-*.beam
 *.d
+*.beam
 ebin
 c_src/leveldb/
 c_src/snappy*/

@@ -167,8 +167,9 @@
 %% algorithm that compresses to similar volume but averages twice
 %% as fast on writes and four times as fast on reads.
 {mapping, "leveldb.compression.algorithm", "eleveldb.compression", [
-  {new_conf_value, lz4},
-  {datatype, {enum, [snappy, lz4]}}
+  {default, lz4},
+  {datatype, {enum, [snappy, lz4]}},
+  hidden
 ]}.
 
 {translation,

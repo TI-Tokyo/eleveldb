@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2010-2017 Basho Technologies, Inc.
+%% Copyright (c) 2010-2017 Basho Technologies, Inc. All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -26,14 +26,29 @@
          get/3,
          put/4,
          async_put/5,
+         sync_put/5,
+         sync_write/4,
          delete/3,
          write/3,
          fold/4,
+         foldtest1/4,
          fold_keys/4,
          status/2,
          destroy/2,
          repair/2,
-         is_empty/1]).
+         append_string/2,
+         append_point/3,
+         ts_batch_to_binary/1,
+         ts_key/1,
+         parse_string/1,
+         is_empty/1,
+         encode/2,
+         current_usec/0]).
+
+%% for testing
+-export([
+         ts_key_TEST/1
+        ]).
 
 -export([option_types/1,
          validate_options/2]).
@@ -43,9 +58,11 @@
          iterator_move/2,
          iterator_close/1]).
 
-%% do_fold exported so that the process of snapshotting the database can be 
+%% do_fold exported so that the process of snapshotting the database can be
 %% separated from the process of running the fold
 -export([do_fold/4]).
+-export([emlfold1/4,
+         emlfold2/1]).
 
 -export_type([db_ref/0,
               itr_ref/0]).
@@ -117,6 +134,10 @@ init() ->
                          {total_memory, pos_integer()} |
                          {total_leveldb_mem, pos_integer()} |
                          {total_leveldb_mem_percent, pos_integer()} |
+                         % TODO: Probably only good for prototype.
+                         % Higher level might have to tweak specific knobs in
+                         % different ways for time series tables.
+                         {time_series, boolean()} |
                          {is_internal_db, boolean()} |
                          {limited_developer_mem, boolean()} |
                          {eleveldb_threads, pos_integer()} |
@@ -132,26 +153,53 @@ init() ->
                          {whole_file_expiry, boolean()}
                         ].
 
--type read_options() :: [{verify_checksums, boolean()} |
-                        {fill_cache, boolean()} |
-                        {iterator_refresh, boolean()}].
+-type read_option() :: {verify_checksums, boolean()} |
+                       {fill_cache, boolean()}.
 
--type fold_options() :: [{verify_checksums, boolean()} |
-                        {fill_cache, boolean()} |
-                        {iterator_refresh, boolean()} |
-                        {first_key, binary()}].
+-type itr_option() :: {iterator_refresh, boolean()}.
+
+-type itr_options() :: [read_option() | itr_option()].
+
+-type read_options() :: [read_option() | itr_option()].
+-type fold_options() :: [{start_key, binary()} | read_options()].
 
 -type write_options() :: [{sync, boolean()}].
 
 -type write_actions() :: [{put, Key::binary(), Value::binary()} |
                           {delete, Key::binary()} |
-                          clear].
+                          clear] | binary().
+
+-type streaming_option() :: {max_batch_bytes, pos_integer()} |
+                            {max_unacked_bytes, pos_integer() |
+                            {fill_cache, boolean()}}.
+
+-type streaming_options() :: [streaming_option()].
+
+-type fold_method() :: iterator | streaming.
+
+-type fold_options() :: [read_option() |
+                         {fold_method, fold_method()} |
+                         {start_key, binary()} |
+                         {end_key, binary() | undefined} |
+                         {start_inclusive, boolean()} |
+                         {end_inclusive, boolean()} |
+                         {limit, pos_integer()} |
+                         streaming_option()].
 
 -type iterator_action() :: first | last | next | prev | prefetch | prefetch_stop | binary().
 
 -opaque db_ref() :: binary().
 
 -opaque itr_ref() :: binary().
+
+-type stream_ref() :: {reference(), binary()}.
+
+encode(Val, timestamp) ->
+    <<Val:64>>;
+encode(Val, binary) when is_binary(Val)->
+    Val;
+encode(Val, _) ->
+    term_to_binary(Val).
 
 -spec async_open(reference(), string(), open_options()) -> ok.
 async_open(_CallerRef, _Name, _Opts) ->
@@ -205,24 +253,33 @@ async_put(Ref, Context, Key, Value, Opts) ->
 async_write(_CallerRef, _Ref, _Updates, _Opts) ->
     erlang:nif_error({error, not_loaded}).
 
--spec async_iterator(reference(), db_ref(), fold_options()) -> ok.
+%% Note that only read_options may influence the iterator, if the start_key
+%% is to be set, it must be done through explicitly calling iterator_move
+-spec sync_put(db_ref(), reference(), binary(), binary(), write_options()) -> ok | {error, any()}.
+sync_put(Ref, Context, Key, Value, Opts) ->
+    Updates = [{put, Key, Value}],
+    sync_write(Context, Ref, Updates, Opts).
+
+-spec sync_write(reference(), db_ref(), write_actions(), write_options()) -> ok | {error, any()}.
+sync_write(_CallerRef, _Ref, _Updates, _Opts) ->
+    erlang:nif_error({error, not_loaded}).
+
+-spec async_iterator(reference(), db_ref(), itr_options()) -> ok.
 async_iterator(_CallerRef, _Ref, _Opts) ->
     erlang:nif_error({error, not_loaded}).
 
--spec async_iterator(reference(), db_ref(), fold_options(), keys_only) -> ok.
+-spec async_iterator(reference(), db_ref(), itr_options(), keys_only) -> ok.
 async_iterator(_CallerRef, _Ref, _Opts, keys_only) ->
     erlang:nif_error({error, not_loaded}).
 
--spec iterator(db_ref(), fold_options()) -> {ok, itr_ref()}.
-%% Note that only read_options may influence the iterator, if the first_key
-%% is to be set, it must be done through explicitly calling iterator_move 
+-spec iterator(db_ref(), itr_options()) -> {ok, itr_ref()}.
 iterator(Ref, Opts) ->
     CallerRef = make_ref(),
     async_iterator(CallerRef, Ref, Opts),
     ?WAIT_FOR_REPLY(CallerRef).
 
 -spec iterator(db_ref(), fold_options(), keys_only) -> {ok, itr_ref()}.
-%% Note that only read_options may influence the iterator, if the first_key
+%% Note that only read_options may influence the iterator, if the start_key
 %% is to be set, it must be done through explicitly calling iterator_move
 iterator(Ref, Opts, keys_only) ->
     CallerRef = make_ref(),
@@ -261,14 +318,122 @@ iterator_close(IRef) ->
 async_iterator_close(_CallerRef, _IRef) ->
     erlang:nif_error({error, not_loaded}).
 
+-spec streaming_start(db_ref(), binary(), binary() | undefined,
+                      streaming_options()) ->
+    {ok, stream_ref()} | {error, any()}.
+streaming_start(_DBRef, _StartKey, _EndKey, _Opts) ->
+    erlang:nif_error({error, not_loaded}).
+
+-spec streaming_ack(binary(), pos_integer()) -> ok.
+streaming_ack(_AckRef, _NumBytes) ->
+    erlang:nif_error({error, not_loaded}).
+
+-spec streaming_stop(binary()) -> ok.
+streaming_stop(_AckRef) ->
+    erlang:nif_error({error, not_loaded}).
+
 -type fold_fun() :: fun(({Key::binary(), Value::binary()}, any()) -> any()).
 
+do_streaming_batch(<<>>, _Fun, Acc) ->
+    Acc;
+do_streaming_batch(Bin, Fun, Acc) ->
+    {K, Bin2} = parse_string(Bin),
+    {V, Bin3} = parse_string(Bin2),
+    Acc2 = Fun({K, V}, Acc),
+    do_streaming_batch(Bin3, Fun, Acc2).
+
+do_streaming_fold(StreamRef = {MsgRef, AckRef}, Fun, Acc) ->
+    receive
+        {streaming_error, MsgRef, ErrMsg} ->
+            lager:error("Streaming error: ~p\n", [ErrMsg]),
+            Acc;
+        {streaming_end, MsgRef} ->
+            Acc;
+        {streaming_batch, MsgRef, Batch} ->
+            Size = byte_size(Batch),
+            Acc2 = do_streaming_batch(Batch, Fun, Acc),
+            _ = streaming_ack(AckRef, Size),
+            do_streaming_fold(StreamRef, Fun, Acc2)
+    end.
+
+do_streaming_fold_test1(StreamRef = {MsgRef, AckRef}, Fun, Acc) ->
+    receive
+        {streaming_end, MsgRef} ->
+            Acc;
+        {streaming_batch, MsgRef, Batch} ->
+            Size = byte_size(Batch),
+            _ = streaming_ack(AckRef, Size),
+            do_streaming_fold(StreamRef, Fun, Acc)
+    end.
+
+current_usec() ->
+    erlang:nif_error({error, not_loaded}).
+
+parse_string(Bin) ->
+    parse_string(0, 0, Bin).
+
+parse_string(Size, Shift, <<1:1, N:7, Bin/binary>>) ->
+    Size1 = Size + (N bsl Shift),
+    parse_string(Size1, Shift + 7, Bin);
+parse_string(Size, Shift, <<0:1, N:7, Bin/binary>>) ->
+    Size1 = Size + (N bsl Shift),
+    <<String:Size1/binary, Rest/binary>> = Bin,
+    {String, Rest}.
+
 %% Fold over the keys and values in the database
+%%
 %% will throw an exception if the database is closed while the fold runs
+%%
+%% will also throw an exception if there is an error parsing a
+%% range_filter passed as part of the streaming options
+
 -spec fold(db_ref(), fold_fun(), any(), fold_options()) -> any().
 fold(Ref, Fun, Acc0, Opts) ->
+    case proplists:get_value(fold_method, Opts, iterator) of
+        iterator ->
+            {ok, Itr} = iterator(Ref, Opts),
+            do_fold(Itr, Fun, Acc0, Opts);
+        streaming ->
+            SKey = proplists:get_value(start_key, Opts, <<>>),
+            EKey = proplists:get_value(end_key, Opts),
+            {ok, StreamRef} = streaming_start(Ref, SKey, EKey, Opts),
+            {_, AckRef} = StreamRef,
+            try
+                do_streaming_fold(StreamRef, Fun, Acc0)
+            after
+                %% Close early, do not wait for garbage collection.
+                streaming_stop(AckRef)
+            end
+    end.
+
+-spec foldtest1(db_ref(), fold_fun(), any(), fold_options()) -> any().
+foldtest1(Ref, Fun, Acc0, Opts) ->
+    case proplists:get_value(fold_method, Opts, iterator) of
+        iterator ->
+            {ok, Itr} = iterator(Ref, Opts),
+            do_fold(Itr, Fun, Acc0, Opts);
+        streaming ->
+            SKey = proplists:get_value(start_key, Opts, <<>>),
+            EKey = proplists:get_value(end_key, Opts),
+            {ok, StreamRef} = streaming_start(Ref, SKey, EKey, Opts),
+            {_, AckRef} = StreamRef,
+            try
+                do_streaming_fold_test1(StreamRef, Fun, Acc0)
+            after
+                %% Close early, do not wait for garbage collection.
+                streaming_stop(AckRef)
+            end
+    end.
+
+emlfold1(Ref, _, _, Opts) ->
     {ok, Itr} = iterator(Ref, Opts),
-    do_fold(Itr, Fun, Acc0, Opts).
+    Start = proplists:get_value(start_key, Opts, first),
+    true = is_binary(Start) or (Start == first),
+    iterator_move(Itr, Start).
+
+emlfold2(Ref) ->
+    {ok, Itr} = iterator(Ref, []),
+    iterator_move(Itr, first).
 
 -type fold_keys_fun() :: fun((Key::binary(), any()) -> any()).
 
@@ -387,10 +552,10 @@ add_open_defaults(Opts) ->
 
 do_fold(Itr, Fun, Acc0, Opts) ->
     try
-        %% Extract {first_key, binary()} and seek to that key as a starting
+        %% Extract {start_key, binary()} and seek to that key as a starting
         %% point for the iteration. The folding function should use throw if it
         %% wishes to terminate before the end of the fold.
-        Start = proplists:get_value(first_key, Opts, first),
+        Start = proplists:get_value(start_key, Opts, first),
         true = is_binary(Start) or (Start == first),
         fold_loop(iterator_move(Itr, Start), Itr, Fun, Acc0)
     after
@@ -422,6 +587,49 @@ validate_type({_Key, ?COMPRESSION_ENUM}, lz4)                -> true;
 validate_type({_Key, ?COMPRESSION_ENUM}, false)              -> true;
 validate_type(_, _)                                          -> false.
 
+append_varint(N, Bin) ->
+    N2 = N bsr 7,
+    case N2 of
+        0 ->
+            C = N rem 128,
+            <<Bin/binary, C:8>>;
+        _ ->
+            C = (N rem 128) + 128,
+            append_varint(N2, <<Bin/binary, C:8>>)
+    end.
+
+append_string(S, Bin) ->
+    L = byte_size(S),
+    B2 = append_varint(L, Bin),
+    <<B2/binary, S/binary>>.
+
+append_point(Timestamp, Value, Bin) ->
+    Bin2 = <<Bin/binary, Timestamp:64>>,
+    append_string(Value, Bin2).
+
+append_points([], Bin) ->
+    Bin;
+append_points([{Timestamp, Value}|MorePoints], Bin) ->
+    Bin2 = append_point(Timestamp, Value, Bin),
+    append_points(MorePoints, Bin2).
+
+ts_batch_to_binary({ts_batch, Family, Series, Points}) ->
+    B2 = append_string(Family, <<>>),
+    B3 = append_string(Series, B2),
+    append_points(Points, B3).
+
+ts_key(List) when is_list(List) ->
+    ts_l2(lists:reverse(List), <<>>).
+
+ts_l2([], Acc) ->
+    Acc;
+ts_l2([H | T], Acc) ->
+    ts_l2(T, append_string(H, Acc)).
+
+ts_key_TEST({Family, Series, Time}) ->
+    B1 = <<Time:64>>,
+    B2 = append_string(Family, B1),
+    append_string(Series, B2).
 
 %% ===================================================================
 %% Tests
@@ -456,6 +664,16 @@ assert_open(DbPath, OpenOpts) ->
     ?assertMatch({ok, _}, OpenRet),
     {_, DbRef} = OpenRet,
     DbRef.
+fold_from_key_test() -> [{fold_from_key_test_Z(), l} || l <- lists:seq(1, 20)].
+fold_from_key_test_Z() ->
+    os:cmd("rm -rf /tmp/eleveldb.fold.fromkeys.test"),
+    {ok, Ref} = open("/tmp/eleveldb.fromfold.keys.test", [{create_if_missing, true}]),
+    ok = ?MODULE:put(Ref, <<"def">>, <<"456">>, []),
+    ok = ?MODULE:put(Ref, <<"abc">>, <<"123">>, []),
+    ok = ?MODULE:put(Ref, <<"hij">>, <<"789">>, []),
+    [<<"def">>, <<"hij">>] = lists:reverse(fold_keys(Ref,
+                                                     fun(K, Acc) -> [K | Acc] end,
+                                                     [], [{start_key, <<"d">>}])).
 
 -spec assert_open_small(DbPath :: string()) -> db_ref() | no_return().
 %%
@@ -473,6 +691,34 @@ assert_open_small(DbPath) ->
 %%
 create_test_dir() ->
     string:strip(?cmd("mktemp -d /tmp/" ?MODULE_STRING ".XXXXXXX"), both, $\n).
+
+compression_test() -> [{compression_test_Z(), l} || l <- lists:seq(1, 20)].
+compression_test_Z() ->
+    CompressibleData = list_to_binary([0 || _X <- lists:seq(1,20)]),
+    os:cmd("rm -rf /tmp/eleveldb.compress.0 /tmp/eleveldb.compress.1"),
+    {ok, Ref0} = open("/tmp/eleveldb.compress.0", [{write_buffer_size, 5},
+                                                   {create_if_missing, true},
+                                                   {compression, false}]),
+    [ok = ?MODULE:put(Ref0, <<I:64/unsigned>>, CompressibleData, [{sync, true}]) ||
+        I <- lists:seq(1,10)],
+    {ok, Ref1} = open("/tmp/eleveldb.compress.1", [{write_buffer_size, 5},
+                                                   {create_if_missing, true},
+                                                   {compression, true}]),
+    [ok = ?MODULE:put(Ref1, <<I:64/unsigned>>, CompressibleData, [{sync, true}]) ||
+        I <- lists:seq(1,10)],
+        %% Check both of the LOG files created to see if the compression option was correctly
+        %% passed down
+        MatchCompressOption =
+                fun(File, Expected) ->
+                                {ok, Contents} = file:read_file(File),
+                                case re:run(Contents, "Options.compression: " ++ Expected) of
+                                        {match, _} -> match;
+                                        nomatch -> nomatch
+                                end
+                end,
+        Log0Option = MatchCompressOption("/tmp/eleveldb.compress.0/LOG", "0"),
+        Log1Option = MatchCompressOption("/tmp/eleveldb.compress.1/LOG", "1"),
+        ?assert(Log0Option =:= match andalso Log1Option =:= match).
 
 -spec delete_test_dir(Dir :: string()) -> ok | no_return().
 %%
@@ -601,7 +847,7 @@ test_fold_from_key(TestDir) ->
     ?assertEqual(ok, ?MODULE:put(Ref, <<"abc">>, <<"123">>, [])),
     ?assertEqual(ok, ?MODULE:put(Ref, <<"hij">>, <<"789">>, [])),
     ?assertEqual([<<"def">>, <<"hij">>], lists:reverse(
-        ?MODULE:fold_keys(Ref, fun accumulate/2, [], [{first_key, <<"d">>}]))),
+        ?MODULE:fold_keys(Ref, fun accumulate/2, [], [{start_key, <<"d">>}]))),
     assert_close(Ref).
 
 test_destroy(TestDir) ->
