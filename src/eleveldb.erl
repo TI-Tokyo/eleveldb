@@ -161,7 +161,6 @@ init() ->
 -type itr_options() :: [read_option() | itr_option()].
 
 -type read_options() :: [read_option() | itr_option()].
--type fold_options() :: [{start_key, binary()} | read_options()].
 
 -type write_options() :: [{sync, boolean()}].
 
