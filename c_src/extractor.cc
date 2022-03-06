@@ -35,7 +35,7 @@ using namespace eleveldb;
 // Methods of Extractor base class
 //=======================================================================
 
-Extractor::Extractor() 
+Extractor::Extractor()
 {
     typesParsed_    = false;
     nField_         = 0;
@@ -53,7 +53,7 @@ Extractor::~Extractor() {}
  * as binaries from opaque items that are treated as binaries because
  * we don't know what they are (type 'any').
  */
-void Extractor::add_field(std::string field) 
+void Extractor::add_field(std::string field)
 {
     if(expr_field_specs_.find(field) != expr_field_specs_.end()) {
 
@@ -150,9 +150,9 @@ DataType::Type Extractor::cTypeOf(std::string fieldName)
 DataType::Type Extractor::convertToSupportedCType(DataType::Type type)
 {
     //------------------------------------------------------------
-    // Else try to upcast to a supported type.  
+    // Else try to upcast to a supported type.
     //------------------------------------------------------------
-    
+
     switch (type) {
 
         //------------------------------------------------------------
@@ -172,7 +172,7 @@ DataType::Type Extractor::convertToSupportedCType(DataType::Type type)
         // expressions' (ie, comparators, like A <= B) rather than
         // 'expressions that return boolean values' (like A)
         //------------------------------------------------------------
-        
+
     case DataType::BOOL:
         return DataType::UINT8;
         break;
@@ -199,7 +199,7 @@ DataType::Type Extractor::convertToSupportedCType(DataType::Type type)
         // floating point for numeric types, we upcast all other
         // integers to int64_t
         //------------------------------------------------------------
-        
+
     case DataType::UINT8:
     case DataType::UINT16:
     case DataType::UINT32:
@@ -209,11 +209,11 @@ DataType::Type Extractor::convertToSupportedCType(DataType::Type type)
     case DataType::INT32:
         return DataType::INT64;
         break;
-        
+
         //------------------------------------------------------------
         // All other types are treated as opaque binaries
         //------------------------------------------------------------
-        
+
     case DataType::ANY:
         return DataType::UCHAR_PTR;
         break;
@@ -300,28 +300,28 @@ DataType::Type Extractor::cTypeOf(ErlNifEnv* env, ERL_NIF_TERM tuple, bool throw
 
             if(!(op == eleveldb::filter::FIELD_OP || op == eleveldb::filter::CONST_OP)) {
                 if(throwIfInvalid)
-                    ThrowRuntimeError("Invalid operand type: '" << op << "' while parsing expression: '" 
+                    ThrowRuntimeError("Invalid operand type: '" << op << "' while parsing expression: '"
                                       << ErlUtil::formatTerm(env, tuple) << "'");
             }
 
             if(op == eleveldb::filter::FIELD_OP)
                 fieldName = ErlUtil::getBinaryAsString(env, op_args[1]);
-            
+
             //------------------------------------------------------------
             // Check 2-tuples
             //------------------------------------------------------------
 
             if(arity == 2) {
-                
+
                 // If this is a constant expression, we defer to the field value
                 // against which we will be comparing it
-                
+
                 if(op == eleveldb::filter::CONST_OP)
                     return DataType::CONST;
-                
+
                 // Else a field -- parse the field name, and return the type of
                 // the datum for that field
-                
+
                 if(op == eleveldb::filter::FIELD_OP)
                     return cTypeOf(fieldName);
 
@@ -334,18 +334,18 @@ DataType::Type Extractor::cTypeOf(ErlNifEnv* env, ERL_NIF_TERM tuple, bool throw
                 // If this is a constant expression, and a type has
                 // been specified, we still defer to the field value
                 // against which we will be comparing it
-                
+
                 if(op == eleveldb::filter::CONST_OP) {
                     return DataType::CONST;
                 } else {
                     std::string type = ErlUtil::getAtom(env, op_args[2]);
-                    
+
                     // Store the type as-specified
-                    
+
                     expr_field_specs_[fieldName] = tsAtomToType(type, throwIfInvalid);
-                    
+
                     // Overwrite any inferences we may have made from parsing the data
-                    
+
                     DataType::Type specType = tsAtomToCtype(type, throwIfInvalid);
 
                     field_types_[fieldName] = specType;
@@ -434,8 +434,8 @@ bool Extractor::riakObjectContentsCanBeParsed(const char* data, size_t size, uns
  * Given the start of a key data binary, return the start and size of the
  * contents portion of an encoded riak object
  */
-void Extractor::getToRiakObjectContents(const char* data, size_t size, 
-                                        const char** contentsPtr, size_t& contentsSize) 
+void Extractor::getToRiakObjectContents(const char* data, size_t size,
+                                        const char** contentsPtr, size_t& contentsSize)
 {
     const char* ptr = data;
 
@@ -498,7 +498,7 @@ void Extractor::getToRiakObjectContents(const char* data, size_t size,
 /**.......................................................................
  * Extract relevant fields from the data array into the expression tree
  */
-void Extractor::parseRiakObjectTypes(const char* data, size_t size) 
+void Extractor::parseRiakObjectTypes(const char* data, size_t size)
 {
     const char* contentsPtr=0;
     size_t contentsSize=0;
@@ -510,7 +510,7 @@ void Extractor::parseRiakObjectTypes(const char* data, size_t size)
 /**.......................................................................
  * Extract relevant fields from a riak object into the expression tree
  */
-void Extractor::extractRiakObject(const char* data, size_t size, ExpressionNode<bool>* root) 
+void Extractor::extractRiakObject(const char* data, size_t size, ExpressionNode<bool>* root)
 {
     const char* contentsPtr=0;
     size_t contentsSize=0;
@@ -526,7 +526,7 @@ void Extractor::extractRiakObject(const char* data, size_t size, ExpressionNode<
 ExtractorMsgpack::ExtractorMsgpack() {}
 ExtractorMsgpack::~ExtractorMsgpack() {}
 
-void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<bool>* root) 
+void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<bool>* root)
 {
     cmp_mem_access_t ma;
     cmp_object_t     map;
@@ -547,7 +547,7 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
     //------------------------------------------------------------
 
     unsigned nField = 0;
-    
+
     StringBuf sBuf;
     for(unsigned int i=0; i < map_size && nField < nField_; i++) {
 
@@ -603,7 +603,7 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
                 // We have to check the msgpack type every time
                 // because msgpack encoding can in priciple convert
                 // data of the same erlang type into different packed
-                // types.  
+                // types.
                 //
                 // Thus we check the type specification for
                 // this field, and convert from whichever type msgpack
@@ -643,21 +643,21 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
                     //------------------------------------------------------------
                     // Type ANY means that the data for this field are
                     // opaque.  We don't try to interpret these, but treat
-                    // them as binary blobs.  
+                    // them as binary blobs.
                     //
                     // Because the value that they might be compared
                     // against in a filter could also be a msgpack-ed
                     // blob, we store the initial msgpack marker as well
-                    // as the data contents.  
+                    // as the data contents.
                     //
                     // This means that comparisons like:
                     //
                     //   {const, msgpack:pack([1,2,{<<"junk">>}], [{format, jsx}])}
                     //
-                    // with 
-                    // 
+                    // with
+                    //
                     //   {field, "field1", any}
-                    // 
+                    //
                     // will work correctly if field1 contains the same blob that
                     // is msgpack formatted
                     //------------------------------------------------------------
@@ -680,11 +680,11 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
                     break;
                     }
                 } catch(std::runtime_error& err) {
-                    ThrowRuntimeError(err.what() 
+                    ThrowRuntimeError(err.what()
                                       << std::endl << "While processing field: " << key);
                 }
             }
-            
+
             //------------------------------------------------------------
             // Skip over the last object if we didn't parse its value
             //------------------------------------------------------------
@@ -698,25 +698,25 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
 /**.......................................................................
  * Set a string value decoded from msgpack as the expression value
  */
-void ExtractorMsgpack::setStringVal(ExpressionNode<bool>* root, 
+void ExtractorMsgpack::setStringVal(ExpressionNode<bool>* root,
                                     std::string& key, cmp_object_t* obj)
 {
     uint32_t len;
     if(!cmp_object_as_str(obj, &len))
         ThrowRuntimeError("Error parsing value as string");
-    
+
     StringBuf val(len+1);
     char* buf = val.getBuf();
     if(!cmp_object_to_str(&cmp_, obj, buf, len+1))
         ThrowRuntimeError("Error extracting string value for key: " << key);
-    
+
     root->set_value(key, (void*)&buf, DataType::UCHAR_PTR);
 }
 
 /**.......................................................................
  * Set a binary value decoded from msgpack as the expression value
  */
-void ExtractorMsgpack::setBinaryVal(ExpressionNode<bool>* root, 
+void ExtractorMsgpack::setBinaryVal(ExpressionNode<bool>* root,
                                     std::string& key,
                                     cmp_mem_access_t* ma,
                                     cmp_ctx_t* cmp,
@@ -732,7 +732,7 @@ void ExtractorMsgpack::setBinaryVal(ExpressionNode<bool>* root,
  * Read through a msgpack-encoded object, parsing the data types for
  * each field we encounter
  */
-void ExtractorMsgpack::parseTypes(const char* data, size_t size) 
+void ExtractorMsgpack::parseTypes(const char* data, size_t size)
 {
     field_types_ = CmpUtil::parseMap(data, size);
     typesParsed_ = true;
@@ -742,24 +742,24 @@ void ExtractorMsgpack::parseTypes(const char* data, size_t size)
 // Methods of ExtractorErlang
 //=======================================================================
 
-ExtractorErlang::ExtractorErlang() 
+ExtractorErlang::ExtractorErlang()
 {
 }
 
-ExtractorErlang::~ExtractorErlang() 
+ExtractorErlang::~ExtractorErlang()
 {
 }
 
-std::map<std::string, eleveldb::DataType::Type> 
-ExtractorErlang::parseMap(const char* data, size_t size) 
+std::map<std::string, eleveldb::DataType::Type>
+ExtractorErlang::parseMap(const char* data, size_t size)
 {
     // In Ei format, first byte is a version
 
-    int index=1; 
+    int index=1;
     return EiUtil::parseMap((char*)data, &index);
 }
 
-void ExtractorErlang::parseTypes(const char* data, size_t size) 
+void ExtractorErlang::parseTypes(const char* data, size_t size)
 {
     field_types_ = parseMap(data, size);
     typesParsed_ = true;
@@ -768,7 +768,7 @@ void ExtractorErlang::parseTypes(const char* data, size_t size)
 /**.......................................................................
  * Set a binary value decoded from erlang as the expression value
  */
-void ExtractorErlang::setBinaryVal(ExpressionNode<bool>* root, std::string& key, 
+void ExtractorErlang::setBinaryVal(ExpressionNode<bool>* root, std::string& key,
                                    char* buf, int* index,
                                    bool includeMarker)
 {
@@ -777,7 +777,7 @@ void ExtractorErlang::setBinaryVal(ExpressionNode<bool>* root, std::string& key,
     root->set_value(key, &ptr, DataType::UCHAR_PTR, size);
 }
 
-void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>* root) 
+void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>* root)
 {
     root->clear();
 
@@ -803,13 +803,13 @@ void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>
             ThrowRuntimeError("List must consist of {field, val} tuples: " << std::endl
                               << ErlUtil::formatBinary(data, size));
         }
-        
+
         //------------------------------------------------------------
         // First read the field key
         //------------------------------------------------------------
 
         std::string key = EiUtil::getBinaryAsStringEml(data, &index);
-        
+
         //------------------------------------------------------------
         // Next up is the field value
         //------------------------------------------------------------
@@ -824,17 +824,17 @@ void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>
             DataType::Type specType = expr_fields_[key];
 
             ++nField_;
-            
+
             //------------------------------------------------------------
             // If there is no value for this field, do nothing.
             // Unlike ExtractorMsgpack, because of the way the ei
             // interface works, we still need to skip the NIL object
             //------------------------------------------------------------
-            
+
             if(EiUtil::isNil(data, &index)) {
                 EiUtil::skipLastReadObject(data, &index);
                 continue;
-            
+
                 //------------------------------------------------------------
                 // Else set the appropriate value type for this field.
                 //
@@ -846,11 +846,11 @@ void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>
                 // and convert from whichever type was chosen to the
                 // appropriate type for our filter.
                 //------------------------------------------------------------
-                
+
             } else {
 
                 try {
-                
+
                     switch (specType) {
                     case DataType::UINT8:
                     {
@@ -880,21 +880,21 @@ void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>
                     //------------------------------------------------------------
                     // Type ANY means that the data for this field are
                     // opaque.  We don't try to interpret these, but treat
-                    // them as binary blobs.  
+                    // them as binary blobs.
                     //
                     // Because the value that they might be compared
                     // against in a filter could also be a msgpack-ed
                     // blob, we store the initial msgpack marker as well
-                    // as the data contents.  
+                    // as the data contents.
                     //
                     // This means that comparisons like:
                     //
                     //   {const, msgpack:pack([1,2,{<<"junk">>}], [{format, jsx}])}
                     //
-                    // with 
-                    // 
+                    // with
+                    //
                     //   {field, "field1", any}
-                    // 
+                    //
                     // will work correctly if field1 contains the same blob that
                     // is msgpack formatted
                     //------------------------------------------------------------
@@ -918,7 +918,7 @@ void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>
                     }
 
                 } catch(std::runtime_error& err) {
-                    ThrowRuntimeError(err.what() 
+                    ThrowRuntimeError(err.what()
                                       << std::endl << "While processing field: " << key);
                 }
 
@@ -949,7 +949,7 @@ ExtractorMap::ExtractorMap()
     // stream, we simply allocate a map of extractors for all
     // known encodings
     //------------------------------------------------------------
-    
+
     map_[Encoding::encodingByte(Encoding::MSGPACK)] = new ExtractorMsgpack();
     map_[Encoding::encodingByte(Encoding::ERLANG)]  = new ExtractorErlang();
 
@@ -960,7 +960,7 @@ ExtractorMap::ExtractorMap()
     // as-is, we need to set extractor_->typesParsed_ to true as
     // if we had parsed the datatypes
     //------------------------------------------------------------
-    
+
     for(std::map<unsigned char, Extractor*>::iterator iter=map_.begin(); iter != map_.end(); iter++)
         iter->second->typesParsed_ = true;
 }
@@ -1000,7 +1000,7 @@ void ExtractorMap::add_field(std::string field)
 }
 
 DataType::Type ExtractorMap::cTypeOf(ErlNifEnv* env,
-                                     ERL_NIF_TERM operand1, 
+                                     ERL_NIF_TERM operand1,
                                      ERL_NIF_TERM operand2,
                                      bool throwIfInvalid)
 {
