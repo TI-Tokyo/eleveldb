@@ -5,7 +5,7 @@
 
 /**
  * StringBuf
- * 
+ *
  *   A class for managing a char buffer, initially allocated on the
  *   stack, but grown from the heap if resized beyond a fixed limit.
  *
@@ -20,7 +20,7 @@ namespace eleveldb {
 
     class StringBuf {
     public:
-        
+
         // Constructors
 
         StringBuf();
@@ -61,9 +61,9 @@ namespace eleveldb {
 
         // Return a string representation of the internal buffer
         // (assumed to be null-terminated)
-        
+
         std::string getString();
-        
+
     private:
 
         void initialize();
@@ -81,11 +81,11 @@ namespace eleveldb {
         char*  bufPtr_;
 
         // The actual size of the buffer
-        
+
         size_t bufSize_;
-        
+
         // The size of the data in the buffer
-        
+
         size_t dataSize_;
 
     }; // End class StringBuf

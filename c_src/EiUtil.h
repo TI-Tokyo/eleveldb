@@ -6,9 +6,9 @@
  *
  *   A class for operating on erlang term_to_binary-encoded data,
  *   using the ei library (see http://erlang.org/doc/man/ei.html)
- * 
+ *
  * Created: Wed Sep  9 17:32:28 PDT 2015
- * 
+ *
  * Original author: eleitch@basho.com
  */
 #include <stdlib.h>
@@ -39,14 +39,14 @@ namespace eleveldb {
         //------------------------------------------------------------
         // What I'm calling Big is a type encoded by TTB, but for
         // which no encoding is implemented in the ei library.
-        // 
+        //
         // It can contain a positive or negative value, and can store
         // ints as an arbitrary number of bytes.
         //
         // This struct is for managing up to 8-byte integers encoded
         // as a big
         //------------------------------------------------------------
-        
+
         struct Big {
             bool isSigned_;
             unsigned size_;
@@ -58,7 +58,7 @@ namespace eleveldb {
                 val_      = 0;
             };
         };
-        
+
         /**
          * Constructor.
          */
@@ -78,19 +78,19 @@ namespace eleveldb {
         FN_DECL(int, getVersion);
         FN_DECL(int, getTupleHeader);
         FN_DECL(int, getListHeader);
-        
+
         FN_DECL(ei_term, decodeTerm);
-        
+
         FN_DECL(int, getType);
 
         // This is the size as returned by ei_get_type, which is _not_
         // the size in bytes of an object, but size in # elements
-        
+
         FN_DECL(int, getSizeInElements);
 
         // This returns the size in bytes of the next object in the
         // buffer
-        
+
         static void getSizeInBytes(char* buf, int* index, unsigned& nHeaderBytes, unsigned& nDataBytes);
 
         FN_DECL(bool, isInteger);
@@ -109,9 +109,9 @@ namespace eleveldb {
         FN_DECL(bool, isBig);
         FN_DECL(bool, canBeUint64);
         static bool isBig(char* buf, int* index, unsigned& size, bool& isSigned);
-        
+
         FN_DECL(bool, isFun);
-        
+
         static bool isInteger(int type);
         static bool isFloat(int type);
         static bool isAtom(int type);
@@ -125,14 +125,14 @@ namespace eleveldb {
         static bool isBinary(int type);
         static bool isBig(int type);
         static bool isFun(int type);
-        
+
         FN_DECL(std::string, typeStrOf);
         FN_DECL(DataType::Type, typeOf);
 
         static std::string typeStrOf(int type);
         static DataType::Type typeOf(int type, char* buf, int* index);
 
-        static unsigned char* getDataPtr(char* buf, int* index, size_t& size, 
+        static unsigned char* getDataPtr(char* buf, int* index, size_t& size,
                                          bool includeMarker);
 
         FN_DECL(bool,          getBool);
@@ -149,7 +149,7 @@ namespace eleveldb {
         FN_DECL(std::vector<unsigned, char> getBinary);
         FN_DECL(std::string,   getBinaryAsString);
         FN_DECL(std::string,   getBinaryAsStringEml);
-        
+
         FN_DECL(std::string, formatAtom);
         FN_DECL(std::string, formatInteger);
         FN_DECL(std::string, formatBig);
@@ -192,10 +192,10 @@ namespace eleveldb {
         static int64_t  objectToInt64(char* buf, int* index);
         static uint64_t objectToUint64(char* buf, int* index);
         static double   objectToDouble(char* buf, int* index);
-        
+
         // Templatized type-conversion functions
 
-        template<typename typeTo, typename typeFrom> 
+        template<typename typeTo, typename typeFrom>
             static typeTo convert(char* buf, int* index);
 
     private:
@@ -207,7 +207,7 @@ namespace eleveldb {
         int version_;
 
     }; // End class EiUtil
-    
+
 } // End namespace eleveldb
 
 #endif // End #ifndefELEVELDB_EIUTIL_H

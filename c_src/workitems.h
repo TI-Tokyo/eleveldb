@@ -479,13 +479,13 @@ protected:
     ExpressionNode<bool>* range_filter_;
 
     // RangeScanTask::extractorMap_ contains a map of allocated
-    // extractors for valid encodings.  
-    
+    // extractors for valid encodings.
+
     ExtractorMap extractorMap_;
 
     // RangeScanTask::extractor_ is just a temporary pointer that will
     // point to the right extractor for the current data record
-    
+
     Extractor* extractor_;
 
 private:

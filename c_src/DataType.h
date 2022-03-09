@@ -3,11 +3,11 @@
 
 /**
  * DataType
- * 
+ *
  *   A class for managing data-type specifications
  *
  * Tagged: Wed Sep  9 11:10:10 PDT 2015
- * 
+ *
  * Original author: eleitch@basho.com
  */
 #include <sstream>
@@ -21,7 +21,7 @@ namespace eleveldb {
       UNKNOWN   =      0x0,
       UNHANDLED =      0x1,
       NIL       =      0x2,
-      ANY       =      0x4, 
+      ANY       =      0x4,
       ARRAY     =      0x8,
       BIN       =     0x10,
       BOOL      =     0x20,

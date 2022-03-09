@@ -3,12 +3,12 @@
 
 /**
  * Encoding
- * 
+ *
  *   A class for managing valid encodings used in writing TS records
  *   to disk.
  *
  * Created: Mon Sep 14 11:36:04 PDT 2015
- * 
+ *
  * Original author: eleitch@basho.com
  */
 #include <sstream>
@@ -49,7 +49,7 @@ namespace eleveldb {
     //------------------------------------------------------------
     // Operator for printing encoding types
     //------------------------------------------------------------
-    
+
     std::ostream& operator<<(std::ostream& os,  Encoding::Type type);
 
 } // End namespace eleveldb

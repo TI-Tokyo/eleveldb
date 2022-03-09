@@ -7,9 +7,9 @@
  *   A class for manipulating erlang terms passed across the NIF
  *   interface, based on the erl_nif library library (see
  *   http://erlang.org/doc/man/erl_nif.html)
- * 
+ *
  * Created: Wed Sep  9 17:32:28 PDT 2015
- * 
+ *
  * Original author: eleitch@basho.com
  */
 #include "erl_nif.h"
@@ -23,12 +23,12 @@ namespace eleveldb {
 
     class ErlUtil {
     public:
-      
+
         // Constructor.
 
         ErlUtil(ErlNifEnv* env=0);
         ErlUtil(ErlNifEnv* env, ERL_NIF_TERM term);
-      
+
         /**
          * Destructor.
          */
@@ -38,30 +38,30 @@ namespace eleveldb {
         void setTerm(ERL_NIF_TERM term);
 
         bool isAtom();
-        bool isAtom(ERL_NIF_TERM term); 
+        bool isAtom(ERL_NIF_TERM term);
         static bool isAtom(ErlNifEnv* env, ERL_NIF_TERM term);
 
         bool isBinary();
-        bool isBinary(ERL_NIF_TERM term); 
+        bool isBinary(ERL_NIF_TERM term);
         static bool isBinary(ErlNifEnv* env, ERL_NIF_TERM term);
 
         bool isList();
-        bool isList(ERL_NIF_TERM term); 
+        bool isList(ERL_NIF_TERM term);
         static bool isList(ErlNifEnv* env, ERL_NIF_TERM term);
 
         bool isTuple();
-        bool isTuple(ERL_NIF_TERM term); 
+        bool isTuple(ERL_NIF_TERM term);
         static bool isTuple(ErlNifEnv* env, ERL_NIF_TERM term);
 
         bool isNumber();
-        bool isNumber(ERL_NIF_TERM term); 
+        bool isNumber(ERL_NIF_TERM term);
         static bool isNumber(ErlNifEnv* env, ERL_NIF_TERM term);
 
         // Return true if term is a string.  Returns true if term is a
         // valid atom or erlang string (ie, encoded as a list)
 
         bool isString();
-        bool isString(ERL_NIF_TERM term); 
+        bool isString(ERL_NIF_TERM term);
         static bool isString(ErlNifEnv* env, ERL_NIF_TERM term);
 
         // Return true is term can be represented as a string.
@@ -70,12 +70,12 @@ namespace eleveldb {
         // UTF)
 
         bool isRepresentableAsString();
-        bool isRepresentableAsString(ERL_NIF_TERM term); 
+        bool isRepresentableAsString(ERL_NIF_TERM term);
         static bool isRepresentableAsString(ErlNifEnv* env, ERL_NIF_TERM term);
 
         unsigned listLength();
-        unsigned listLength(ERL_NIF_TERM term); 
-        static unsigned listLength(ErlNifEnv* env, ERL_NIF_TERM term); 
+        unsigned listLength(ERL_NIF_TERM term);
+        static unsigned listLength(ErlNifEnv* env, ERL_NIF_TERM term);
 
         std::string getAtom();
         std::string getAtom(ERL_NIF_TERM term);
@@ -91,7 +91,7 @@ namespace eleveldb {
 
         std::vector<ERL_NIF_TERM> getListCells();
         std::vector<ERL_NIF_TERM> getListCells(ERL_NIF_TERM term);
-        static std::vector<ERL_NIF_TERM> getListCells(ErlNifEnv* env, 
+        static std::vector<ERL_NIF_TERM> getListCells(ErlNifEnv* env,
                                                       ERL_NIF_TERM term);
 
         std::vector<ERL_NIF_TERM> getTupleCells();
@@ -142,7 +142,7 @@ namespace eleveldb {
         static std::string formatBinary(ErlNifEnv* env, ERL_NIF_TERM term);
         static std::string formatBinary(unsigned char* buf, size_t size);
         static std::string formatBinary(char* buf, size_t size);
-        
+
         static std::string formatList(  ErlNifEnv* env, ERL_NIF_TERM term);
         static std::string formatNumber(ErlNifEnv* env, ERL_NIF_TERM term);
         static std::string formatString(ErlNifEnv* env, ERL_NIF_TERM term);

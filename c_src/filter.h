@@ -38,14 +38,14 @@ public:
     virtual void    clear()     = 0;
     virtual bool    has_value() const {return false;};
 
-    virtual void    set_value(std::string key,     void* val, 
+    virtual void    set_value(std::string key,     void* val,
                               DataType::Type type, size_t size=0) = 0;
-  
+
     //------------------------------------------------------------
     // Check a type against the operand data type for this expression
     //------------------------------------------------------------
 
-    virtual void checkType(DataType::Type type) 
+    virtual void checkType(DataType::Type type)
         {
             // If the type is unknown, we can't check it
 
@@ -58,7 +58,7 @@ public:
             if(type_ == DataType::STRING) {
                 if(!(type == DataType::STRING || type == DataType::UCHAR_PTR)) {
                     std::ostringstream os;
-                    os << "Attempt to set the wrong type of value (" << type 
+                    os << "Attempt to set the wrong type of value (" << type
                        << ") for this expression, which is of type " << type_;
                     ThrowRuntimeError(os.str());
                 }
@@ -67,7 +67,7 @@ public:
 
             } else if(type_ != type) {
                 std::ostringstream os;
-                os << "Attempt to set the wrong type of value (" << type 
+                os << "Attempt to set the wrong type of value (" << type
                    << ") for this expression, which is of type " << type_;
                 ThrowRuntimeError(os.str() << " this  = " << this);
             }
@@ -98,25 +98,25 @@ protected:
 
 template<typename TResult, typename TOperands>
 class BinaryExpression : public ExpressionNode<TResult> {
-    
+
 protected:
-    
+
     ExpressionNode<TOperands>* left_;
     ExpressionNode<TOperands>* right_;
-    
+
 public:
-    
-    BinaryExpression(ExpressionNode<TOperands>* left  = 0, 
-                     ExpressionNode<TOperands>* right = 0, 
-                     DataType::Type type = DataType::UNKNOWN) : 
+
+    BinaryExpression(ExpressionNode<TOperands>* left  = 0,
+                     ExpressionNode<TOperands>* right = 0,
+                     DataType::Type type = DataType::UNKNOWN) :
         ExpressionNode<TResult>(type), left_(left), right_(right) {};
-    
+
     virtual ~BinaryExpression() {
         if(left_) {
             delete left_;
             left_ = 0;
         }
-        
+
         if(right_) {
             delete right_;
             right_ = 0;
@@ -129,8 +129,8 @@ public:
         left_->clear();
         right_->clear();
     }
-    
-    virtual void set_value(std::string key, void* value, 
+
+    virtual void set_value(std::string key, void* value,
                            DataType::Type type, size_t size=0) {
         left_->set_value(key, value, type, size);
         right_->set_value(key, value, type, size);
@@ -158,7 +158,7 @@ public:
 class AndOperator: public BinaryExpression<bool, bool> {
 public:
 
-    AndOperator(ExpressionNode<bool>* left, ExpressionNode<bool>* right) : 
+    AndOperator(ExpressionNode<bool>* left, ExpressionNode<bool>* right) :
         BinaryExpression<bool, bool>(left, right, DataType::UNKNOWN) {}
 
     virtual ~AndOperator() {};
@@ -175,7 +175,7 @@ public:
         // We must instead evaluate both clauses, and allow the
         // evaluate functions to determine whether or not
         // has_value()==false is an error condition
-        
+
         return left_->evaluate() && right_->evaluate();
     }
 };
@@ -187,7 +187,7 @@ public:
 class OrOperator: public BinaryExpression<bool, bool> {
 public:
 
-    OrOperator(ExpressionNode<bool>* left, ExpressionNode<bool>* right) : 
+    OrOperator(ExpressionNode<bool>* left, ExpressionNode<bool>* right) :
         BinaryExpression<bool, bool>(left, right, DataType::UNKNOWN) {}
 
     virtual ~OrOperator() {};
@@ -221,9 +221,9 @@ template<typename T>
 class GtOperator: public BinaryExpression<bool, T> {
 public:
 
-    GtOperator(ExpressionNode<T>* left, 
-               ExpressionNode<T>* right, 
-               DataType::Type type) : 
+    GtOperator(ExpressionNode<T>* left,
+               ExpressionNode<T>* right,
+               DataType::Type type) :
         BinaryExpression<bool, T>(left, right, type) {}
 
     virtual ~GtOperator() {};
@@ -245,9 +245,9 @@ template<typename T>
 class GteOperator : public BinaryExpression<bool, T> {
 public:
 
-    GteOperator(ExpressionNode<T>* left, 
-                ExpressionNode<T>* right, 
-                DataType::Type type) : 
+    GteOperator(ExpressionNode<T>* left,
+                ExpressionNode<T>* right,
+                DataType::Type type) :
         BinaryExpression<bool, T>(left, right, type) {}
 
     virtual ~GteOperator() {};
@@ -269,9 +269,9 @@ template<typename T>
 class LtOperator : public BinaryExpression<bool, T> {
 public:
 
-    LtOperator(ExpressionNode<T>* left, 
-               ExpressionNode<T>* right, 
-               DataType::Type type) : 
+    LtOperator(ExpressionNode<T>* left,
+               ExpressionNode<T>* right,
+               DataType::Type type) :
         BinaryExpression<bool, T>(left, right, type) {}
 
     virtual ~LtOperator() {};
@@ -293,9 +293,9 @@ template<typename T>
 class LteOperator : public BinaryExpression<bool, T> {
 public:
 
-    LteOperator(ExpressionNode<T>* left, 
-                ExpressionNode<T>* right, 
-                DataType::Type type) : 
+    LteOperator(ExpressionNode<T>* left,
+                ExpressionNode<T>* right,
+                DataType::Type type) :
         BinaryExpression<bool, T>(left, right, type) {}
 
     virtual ~LteOperator() {};
@@ -317,9 +317,9 @@ template<typename T>
 class EqOperator: public BinaryExpression<bool, T> {
 public:
 
-    EqOperator(ExpressionNode<T>* left, 
-               ExpressionNode<T>* right, 
-               DataType::Type type) : 
+    EqOperator(ExpressionNode<T>* left,
+               ExpressionNode<T>* right,
+               DataType::Type type) :
         BinaryExpression<bool, T>(left, right, type) {};
 
     virtual ~EqOperator() {};
@@ -338,10 +338,10 @@ public:
 template<>
 class EqOperator<unsigned char*>: public BinaryExpression<bool, unsigned char*> {
 public:
-    
-    EqOperator(ExpressionNode<unsigned char*>* left, 
-               ExpressionNode<unsigned char*>* right, 
-               DataType::Type type) : 
+
+    EqOperator(ExpressionNode<unsigned char*>* left,
+               ExpressionNode<unsigned char*>* right,
+               DataType::Type type) :
         BinaryExpression<bool, unsigned char*>(left, right, type) {}
 
     virtual ~EqOperator() {};
@@ -377,9 +377,9 @@ template<typename T>
 class NeqOperator: public BinaryExpression<bool, T> {
 public:
 
-    NeqOperator(ExpressionNode<T>* left, 
-                ExpressionNode<T>* right, 
-                DataType::Type type) : 
+    NeqOperator(ExpressionNode<T>* left,
+                ExpressionNode<T>* right,
+                DataType::Type type) :
         BinaryExpression<bool, T>(left, right, type) {}
 
     virtual ~NeqOperator() {};
@@ -400,9 +400,9 @@ template<>
 class NeqOperator<unsigned char*>: public BinaryExpression<bool, unsigned char*> {
 public:
 
-    NeqOperator(ExpressionNode<unsigned char*>* left, 
-                ExpressionNode<unsigned char*>* right, 
-                DataType::Type type) : 
+    NeqOperator(ExpressionNode<unsigned char*>* left,
+                ExpressionNode<unsigned char*>* right,
+                DataType::Type type) :
         BinaryExpression<bool, unsigned char*>(left, right, type) {}
 
     virtual ~NeqOperator() {};
@@ -468,13 +468,13 @@ struct ConstantValue<unsigned char*> : public ExpressionNode<unsigned char*> {
     std::vector<unsigned char> buf_;
     const unsigned char* value_;
     size_t size_;
-    
-    ConstantValue(std::vector<unsigned char>& buf) : 
+
+    ConstantValue(std::vector<unsigned char>& buf) :
         ExpressionNode<unsigned char*>(DataType::UNKNOWN) {
         initialize(&buf[0], buf.size());
     }
-        
-    ConstantValue(unsigned char* val, size_t size) : 
+
+    ConstantValue(unsigned char* val, size_t size) :
         ExpressionNode<unsigned char*>(DataType::UNKNOWN) {
         initialize(val, size);
     }
@@ -484,7 +484,7 @@ struct ConstantValue<unsigned char*> : public ExpressionNode<unsigned char*> {
         // Constructor for const copies the value into an internal
         // buffer, since we are not guaranteed that the passed pointer
         // is persistent
-            
+
         buf_.resize(size);
         memcpy((void*)&buf_[0], (void*)val, size);
         value_ = &buf_[0];
@@ -506,7 +506,7 @@ struct ConstantValue<unsigned char*> : public ExpressionNode<unsigned char*> {
     inline virtual void set_value(std::string key, void* val, DataType::Type type, size_t size=0) {
         // noop for constant
     }
-    
+
     inline size_t size() {
         return size_;
     }
@@ -522,7 +522,7 @@ struct FieldValue: public ExpressionNode<T> {
     bool has_val_;
     T value_;
 
-    FieldValue(const std::string fieldName, DataType::Type type) : 
+    FieldValue(const std::string fieldName, DataType::Type type) :
         ExpressionNode<T>(type), field_(fieldName), has_val_(false) {};
 
     inline virtual bool has_value() const {
@@ -559,7 +559,7 @@ struct FieldValue: public ExpressionNode<T> {
     // Set a value for this field
     //------------------------------------------------------------
 
-    inline virtual void set_value(std::string key, void* val, 
+    inline virtual void set_value(std::string key, void* val,
                                   DataType::Type type, size_t size=0) {
 
         // If called from a BinaryOperator parent, only set/check the
@@ -583,7 +583,7 @@ struct FieldValue<std::string>: public ExpressionNode<std::string> {
     bool has_val_;
     std::string value_;
 
-    FieldValue(const std::string fieldName, DataType::Type type) : 
+    FieldValue(const std::string fieldName, DataType::Type type) :
         ExpressionNode<std::string>(type), field_(fieldName), has_val_(false) {}
 
     inline virtual bool has_value() const {
@@ -615,7 +615,7 @@ struct FieldValue<std::string>: public ExpressionNode<std::string> {
     // Set a value for this field
     //------------------------------------------------------------
 
-    inline virtual void set_value(std::string key, void* val, 
+    inline virtual void set_value(std::string key, void* val,
                                   DataType::Type type, size_t size=0) {
 
         // If called from a BinaryOperator parent, only set/check the
@@ -648,7 +648,7 @@ struct FieldValue<unsigned char*>: public ExpressionNode<unsigned char*> {
     unsigned char* value_;
     size_t size_;
 
-    FieldValue(const std::string fieldName, DataType::Type type) : 
+    FieldValue(const std::string fieldName, DataType::Type type) :
     ExpressionNode<unsigned char*>(type), field_(fieldName), has_val_(false), value_(0), size_(0) {}
 
     inline virtual bool has_value() const {
@@ -680,7 +680,7 @@ struct FieldValue<unsigned char*>: public ExpressionNode<unsigned char*> {
     // Set a value for this field
     //------------------------------------------------------------
 
-    inline virtual void set_value(std::string key, void* val, 
+    inline virtual void set_value(std::string key, void* val,
                                   DataType::Type type, size_t size=0) {
 
         // If called from a BinaryOperator parent, only set/check the

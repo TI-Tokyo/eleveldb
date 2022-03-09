@@ -6,9 +6,9 @@
  *
  *   A class for operating on msgpack-encoded data, using the cmp
  *   library (Original can be found at https://github.com/camgunz/cmp)
- * 
+ *
  * Created: Wed Sep  9 17:32:28 PDT 2015
- * 
+ *
  * Original author: eleitch@basho.com
  */
 #include <stdlib.h>
@@ -32,7 +32,7 @@ namespace eleveldb {
 
     class CmpUtil {
     public:
-        
+
         /**
          * Constructor.
          */
@@ -42,7 +42,7 @@ namespace eleveldb {
          * Destructor.
          */
         virtual ~CmpUtil();
-        
+
         // Return the data type of this object
 
         static DataType::Type typeOf(cmp_object_t* obj);
@@ -95,7 +95,7 @@ namespace eleveldb {
 
         // Templatized type-conversion functions
 
-        template<typename typeTo, typename typeFrom> 
+        template<typename typeTo, typename typeFrom>
         static typeTo convert(cmp_object_t* obj);
 
         // Return a map of conversion functions
@@ -113,7 +113,7 @@ namespace eleveldb {
         static std::map<uint8_t, CONV_DOUBLE_FN(*)> doubleConvMap_;
 
     }; // End class CmpUtil
-    
+
 } // End namespace eleveldb
 
 #endif // End #ifndefELEVELDB_CMPUTIL_H
