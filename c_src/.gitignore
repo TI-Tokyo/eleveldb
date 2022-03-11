@@ -1,0 +1,6 @@
+msgpack/
+leveldb/
+snappy*/
+system/
+*.o
+*.d
