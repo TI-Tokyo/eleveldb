@@ -403,6 +403,16 @@ bool Extractor::riakObjectContentsCanBeParsed(const char* data, size_t size, uns
     ptr += vClockLen;
 
     //------------------------------------------------------------
+    // The next byte should now be the msgpack magic number (2).
+    // Check that it is
+    //------------------------------------------------------------
+
+    encMagic = (*ptr++);
+
+    if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
+        return false;
+
+    //------------------------------------------------------------
     // Skip the sibling count
     //------------------------------------------------------------
 
@@ -418,16 +428,6 @@ bool Extractor::riakObjectContentsCanBeParsed(const char* data, size_t size, uns
     //------------------------------------------------------------
 
     ptr += 4;
-
-    //------------------------------------------------------------
-    // The next byte should now be the msgpack magic number (2).
-    // Check that it is
-    //------------------------------------------------------------
-
-    encMagic = (*ptr++);
-
-    if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
-        return false;
 
     return true;
 }
@@ -459,6 +459,16 @@ void Extractor::getToRiakObjectContents(const char* data, size_t size,
     ptr += 4;
     ptr += vClockLen;
 
+    unsigned char encMagic = (*ptr++);
+
+    //------------------------------------------------------------
+    // The next byte should now be the msgpack magic number (2).
+    // Check that it is
+    //------------------------------------------------------------
+
+    if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
+        ThrowRuntimeError("This record uses an unsupported encoding");
+
     //------------------------------------------------------------
     // Skip the sibling count
     //------------------------------------------------------------
@@ -476,16 +486,6 @@ void Extractor::getToRiakObjectContents(const char* data, size_t size,
 
     unsigned int valLen =  ntohl(*((unsigned int*)ptr));
     ptr += 4;
-
-    //------------------------------------------------------------
-    // The next byte should now be the msgpack magic number (2).
-    // Check that it is
-    //------------------------------------------------------------
-
-    unsigned char encMagic = (*ptr++);
-
-    if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
-        ThrowRuntimeError("This record uses an unsupported encoding");
 
     //------------------------------------------------------------
     // Set the passed ptr pointing to the start of the contents for this
