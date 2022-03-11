@@ -9,7 +9,7 @@ fi
 unset POSIX_SHELL # clear it so if we invoke other scripts, they run as ksh as well
 
 LEVELDB_VSN="2.0.36"
-
+MSGPACK_TAG="cpp-4.1.1"
 SNAPPY_VSN="1.0.4"
 
 set -e
@@ -39,13 +39,21 @@ get_dep_leveldb () {
     fi
 }
 
+get_dep_msgpack () {
+    if [ ! -d msgpack ]; then
+        wget -q https://github.com/msgpack/msgpack-c/archive/refs/tags/$MSGPACK_TAG.tar.gz
+        tar xzf $MSGPACK_TAG.tar.gz && rm $MSGPACK_TAG.tar.gz
+        mv msgpack-c-$MSGPACK_TAG msgpack
+    fi
+}
+
 case "$1" in
     rm-deps)
-        rm -rf leveldb system snappy-$SNAPPY_VSN
+        rm -rf leveldb msgpack system snappy-$SNAPPY_VSN
         ;;
 
     clean)
-        rm -rf system snappy-$SNAPPY_VSN
+        rm -rf system snappy-$SNAPPY_VSN msgpack
         if [ -d leveldb ]; then
             (cd leveldb && $MAKE clean)
         fi
@@ -54,7 +62,7 @@ case "$1" in
 
     test)
         export CFLAGS="$CFLAGS -I $BASEDIR/system/include"
-        export CXXFLAGS="$CXXFLAGS -I $BASEDIR/system/include"
+        export CXXFLAGS="$CXXFLAGS -I $BASEDIR/system/include $BASEDIR/msgpack/include"
         export LDFLAGS="$LDFLAGS -L$BASEDIR/system/lib"
         export LD_LIBRARY_PATH="$BASEDIR/system/lib:$LD_LIBRARY_PATH"
         export LEVELDB_VSN="$LEVELDB_VSN"
@@ -65,10 +73,13 @@ case "$1" in
 
     get-deps)
         get_dep_leveldb
+        get_dep_msgpack
         ;;
 
     *)
         TARGET_OS=`uname -s`
+
+        get_dep_msgpack
 
         export CFLAGS="$CFLAGS -I $BASEDIR/system/include"
         export CXXFLAGS="$CXXFLAGS -I $BASEDIR/system/include"
@@ -95,12 +106,8 @@ case "$1" in
 
         get_dep_leveldb
 
-        # hack issue where high level make is running -j 4
-        #  and causes build errors in leveldb
-        export MAKEFLAGS=
-
-        (cd leveldb && $MAKE -j 3 all)
-        (cd leveldb && $MAKE -j 3 tools)
+        (cd leveldb && $MAKE all)
+        (cd leveldb && $MAKE tools)
         (cp leveldb/perf_dump leveldb/sst_rewrite leveldb/sst_scan leveldb/leveldb_repair ../priv)
 
         ;;

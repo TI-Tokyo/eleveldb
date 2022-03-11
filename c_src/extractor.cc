@@ -10,6 +10,8 @@
 #include "filter_parser.h"
 #include "workitems.h"
 
+#include <msgpack.hpp>
+
 #include <arpa/inet.h>
 #include <inttypes.h>
 
