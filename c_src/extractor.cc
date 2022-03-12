@@ -428,7 +428,8 @@ bool Extractor::riakObjectContentsCanBeParsed(const char* data, size_t size, uns
     // the data contents for this sibling
     //------------------------------------------------------------
 
-    ptr += 4;
+    // ptr += 4;
+    // ptr += 2;  // TypeTag and extra encoding marker
 
     return true;
 }
@@ -493,6 +494,9 @@ void Extractor::getToRiakObjectContents(const char* data, size_t size,
     // object, and set the returned length to be just the length of the
     // contents
     //------------------------------------------------------------
+
+    ptr++;  // TypeTag
+    ptr++;  // extra encoding marker
 
     *contentsPtr  = ptr;
      contentsSize = valLen;
