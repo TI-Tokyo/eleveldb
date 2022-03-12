@@ -14,6 +14,7 @@
 
 #include <arpa/inet.h>
 #include <inttypes.h>
+#include <fstream>
 
 using namespace eleveldb;
 
@@ -535,6 +536,12 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
     uint32_t         map_size;
 
     root->clear();
+
+    {
+            auto oh = msgpack::unpack(data, size);
+            std::ofstream f("/tmp/eleveldb.log");
+            f << "unpacked: " << oh.get();
+    }
 
     cmp_mem_access_ro_init(&cmp_, &ma, data, size);
 
