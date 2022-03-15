@@ -1331,7 +1331,6 @@ streaming_start(ErlNifEnv * env,
     try {
 
         fold(env, options_list, parse_streaming_option, opts);
-        opts.checkOptions();
 
     } catch(std::runtime_error& err) {
         ERL_NIF_TERM msg_str  = enif_make_string(env, err.what(), ERL_NIF_LATIN1);

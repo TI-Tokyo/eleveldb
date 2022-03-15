@@ -30,18 +30,11 @@
 
 namespace eleveldb {
 
-    class CmpUtil {
+class CmpUtil {
     public:
 
-        /**
-         * Constructor.
-         */
-        CmpUtil();
-
-        /**
-         * Destructor.
-         */
-        virtual ~CmpUtil();
+        CmpUtil() {}
+        virtual ~CmpUtil() {}
 
         // Return the data type of this object
 
@@ -88,29 +81,29 @@ namespace eleveldb {
 
         // Object conversion functions
 
-        static uint8_t  objectToUint8( cmp_object_t* obj);
-        static int64_t  objectToInt64( cmp_object_t* obj);
-        static uint64_t objectToUint64(cmp_object_t* obj);
-        static double   objectToDouble(cmp_object_t* obj);
+        // static uint8_t  objectToUint8( cmp_object_t* obj);
+        // static int64_t  objectToInt64( cmp_object_t* obj);
+        // static uint64_t objectToUint64(cmp_object_t* obj);
+        // static double   objectToDouble(cmp_object_t* obj);
 
         // Templatized type-conversion functions
 
         template<typename typeTo, typename typeFrom>
         static typeTo convert(cmp_object_t* obj);
 
-        // Return a map of conversion functions
+        // // Return a map of conversion functions
 
-        static std::map<uint8_t, CONV_UINT8_FN(*)>  constructUint8Map();
-        static std::map<uint8_t, CONV_INT64_FN(*)>  constructInt64Map();
-        static std::map<uint8_t, CONV_UINT64_FN(*)> constructUint64Map();
-        static std::map<uint8_t, CONV_DOUBLE_FN(*)> constructDoubleMap();
+        // static std::map<uint8_t, CONV_UINT8_FN(*)>  constructUint8Map();
+        // static std::map<uint8_t, CONV_INT64_FN(*)>  constructInt64Map();
+        // static std::map<uint8_t, CONV_UINT64_FN(*)> constructUint64Map();
+        // static std::map<uint8_t, CONV_DOUBLE_FN(*)> constructDoubleMap();
 
         // Static maps of conversion functions
 
-        static std::map<uint8_t, CONV_UINT8_FN(*)>  uint8ConvMap_;
-        static std::map<uint8_t, CONV_INT64_FN(*)>  int64ConvMap_;
-        static std::map<uint8_t, CONV_UINT64_FN(*)> uint64ConvMap_;
-        static std::map<uint8_t, CONV_DOUBLE_FN(*)> doubleConvMap_;
+        // static std::map<uint8_t, CONV_UINT8_FN(*)>  uint8ConvMap_;
+        // static std::map<uint8_t, CONV_INT64_FN(*)>  int64ConvMap_;
+        // static std::map<uint8_t, CONV_UINT64_FN(*)> uint64ConvMap_;
+        // static std::map<uint8_t, CONV_DOUBLE_FN(*)> doubleConvMap_;
 
     }; // End class CmpUtil
 

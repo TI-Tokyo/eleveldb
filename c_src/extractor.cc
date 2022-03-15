@@ -2,9 +2,6 @@
 #include "EiUtil.h"
 #include "ErlUtil.h"
 #include "StringBuf.h"
-
-#include "cmp.h"
-#include "cmp_mem_access.h"
 #include "exceptionutils.h"
 #include "extractor.h"
 #include "filter_parser.h"
@@ -12,27 +9,7 @@
 
 #include <msgpack.hpp>
 
-#include <arpa/inet.h>
-#include <inttypes.h>
-#include <fstream>
-
 using namespace eleveldb;
-
-//=======================================================================
-// Macro to unpack a value of type 'cType' from msgpack, potentially
-// cast it to type 'castType', and set it in an expression node
-//=======================================================================
-
-#define CMP_GET_SET(cType, cmpType, castType, dataType) {       \
-        cType val;                                              \
-        castType castVal;                                       \
-        if(cmp_object_as_##cmpType(&obj, &val)) {               \
-            castVal = (castType)val;                            \
-            root->set_value(key, (void*)&castVal, dataType);    \
-        } else {                                                \
-            ThrowRuntimeError("Error extracting value");        \
-        }                                                       \
-    }
 
 //=======================================================================
 // Methods of Extractor base class
@@ -83,12 +60,12 @@ DataType::Type Extractor::tsAtomToType(std::string tsAtom, bool throwIfInvalid)
     // Used to be 'binary', now it's 'varchar'
 
     if(tsAtom == "varchar") {
-        type = DataType::BIN;
+        type = DataType::STRING;
 
         // Used to be 'integer', now it's 'sint64'
 
     } else if(tsAtom == "sint64") {
-        type = DataType::INT64;
+        type = DataType::INT;
 
         // Used to be 'float', now it's 'double'
 
@@ -152,87 +129,45 @@ DataType::Type Extractor::cTypeOf(std::string fieldName)
  */
 DataType::Type Extractor::convertToSupportedCType(DataType::Type type)
 {
-    //------------------------------------------------------------
-    // Else try to upcast to a supported type.
-    //------------------------------------------------------------
-
-    switch (type) {
-
         //------------------------------------------------------------
-        // Basic types are supported
+        // Else try to upcast to a supported type.
         //------------------------------------------------------------
 
-    case DataType::DOUBLE:
-    case DataType::STRING:
-    case DataType::INT64:
-        return type;
-        break;
+        switch (type) {
 
-        //------------------------------------------------------------
-        // While booleans are supported, we convert to uint8_t.
-        // This is because the templatized parse_expression_node
-        // method for bool is overloaded to evaluate 'boolean
-        // expressions' (ie, comparators, like A <= B) rather than
-        // 'expressions that return boolean values' (like A)
-        //------------------------------------------------------------
+                //------------------------------------------------------------
+                // Basic types are supported
+                //------------------------------------------------------------
 
-    case DataType::BOOL:
-        return DataType::UINT8;
-        break;
+        case DataType::DOUBLE:
+        case DataType::STRING:
+        case DataType::INT:
+        case DataType::UINT:
+        case DataType::BOOL:
+                return type;
 
-        //------------------------------------------------------------
-        // Binaries are treated as UCHAR_PTR types
-        //------------------------------------------------------------
+                //------------------------------------------------------------
+                // Until clarified, timestamps are treated as uint64_t
+                //------------------------------------------------------------
 
-    case DataType::BIN:
-        return DataType::UCHAR_PTR;
-        break;
+        case DataType::TIMESTAMP:
+                return DataType::UINT;
 
-        //------------------------------------------------------------
-        // Until clarified, timestamps are treated as uint64_t
-        //------------------------------------------------------------
+                //------------------------------------------------------------
+                // All other types are treated as opaque binaries
+                //------------------------------------------------------------
 
-    case DataType::UINT64:
-    case DataType::TIMESTAMP:
-        return DataType::UINT64;
-        break;
-
-        //------------------------------------------------------------
-        // Because the riak client layer supports only int64_t and
-        // floating point for numeric types, we upcast all other
-        // integers to int64_t
-        //------------------------------------------------------------
-
-    case DataType::UINT8:
-    case DataType::UINT16:
-    case DataType::UINT32:
-    case DataType::CHAR:
-    case DataType::INT8:
-    case DataType::INT16:
-    case DataType::INT32:
-        return DataType::INT64;
-        break;
-
-        //------------------------------------------------------------
-        // All other types are treated as opaque binaries
-        //------------------------------------------------------------
-
-    case DataType::ANY:
-        return DataType::UCHAR_PTR;
-        break;
-    default:
-        return DataType::UCHAR_PTR;
-        break;
-    }
+        default:
+                ThrowRuntimeError("Refusing to convert type " << type);
+        }
 }
 
 void Extractor::printMap(std::map<std::string, DataType::Type>& keyTypeMap)
 {
-    for(std::map<std::string, DataType::Type>::iterator iter = keyTypeMap.begin();
-        iter != keyTypeMap.end(); iter++) {
-        COUT("'" << iter->first << "' " << convertToSupportedCType(iter->second));
-        FOUT("'" << iter->first << "' " << convertToSupportedCType(iter->second));
-    }
+        for(auto iter : keyTypeMap) {
+                COUT("'" << iter.first << "' " << convertToSupportedCType(iter.second));
+                FOUT("'" << iter.first << "' " << convertToSupportedCType(iter.second));
+        }
 }
 
 /**.......................................................................
@@ -296,12 +231,12 @@ DataType::Type Extractor::cTypeOf(ErlNifEnv* env, ERL_NIF_TERM tuple, bool throw
     //------------------------------------------------------------
 
     try {
-        if(enif_get_tuple(env, tuple, &arity, &op_args)) {
+        if (enif_get_tuple(env, tuple, &arity, &op_args)) {
 
             std::string op = ErlUtil::getAtom(env, op_args[0]);
             std::string fieldName;
 
-            if(!(op == eleveldb::filter::FIELD_OP || op == eleveldb::filter::CONST_OP)) {
+            if (!(op == eleveldb::filter::FIELD_OP || op == eleveldb::filter::CONST_OP)) {
                 if(throwIfInvalid)
                     ThrowRuntimeError("Invalid operand type: '" << op << "' while parsing expression: '"
                                       << ErlUtil::formatTerm(env, tuple) << "'");
@@ -381,148 +316,68 @@ DataType::Type Extractor::cTypeOf(ErlNifEnv* env, ERL_NIF_TERM tuple, bool throw
  * Given the start of a key data binary, return the start and size of the
  * contents portion of an encoded riak object
  */
-bool Extractor::riakObjectContentsCanBeParsed(const char* data, size_t size, unsigned char& encMagic)
+void Extractor::seekToRiakObjectContents(const char* data, size_t size,
+                                         const char** contentsPtr, size_t* contentsSize)
 {
-    const char* ptr = data;
+        const char* ptr = data;
 
-    //------------------------------------------------------------
-    // Skip the magic number and version
-    //------------------------------------------------------------
+        //------------------------------------------------------------
+        // Skip the magic number and version
+        //------------------------------------------------------------
 
-    unsigned char magic    = (*ptr++);
-    unsigned char vers     = (*ptr++);
+        unsigned char magic    = (*ptr++);
+        unsigned char vers     = (*ptr++);
 
-    if(!(magic == 53 && vers == 1))
-        return false;
+        if(!(magic == 53 && vers == 1))
+                ThrowRuntimeError("Riak object contents can only be inspected for magic = 53 and v1 encoding");
 
-    //------------------------------------------------------------
-    // Skip the vclock len and vclock contents
-    //------------------------------------------------------------
+        //------------------------------------------------------------
+        // Skip the vclock len and vclock contents
+        //------------------------------------------------------------
 
-    unsigned int vClockLen = ntohl(*((unsigned int*)ptr));
-    ptr += 4;
-    ptr += vClockLen;
+        unsigned int vClockLen = ntohl(*((unsigned int*)ptr));
+        ptr += 4;
+        ptr += vClockLen;
 
-    //------------------------------------------------------------
-    // The next byte should now be the msgpack magic number (2).
-    // Check that it is
-    //------------------------------------------------------------
+        unsigned char encMagic = (*ptr++);
 
-    encMagic = (*ptr++);
+        //------------------------------------------------------------
+        // The next byte should now be the msgpack magic number (2).
+        // Check that it is
+        //------------------------------------------------------------
 
-    if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
-        return false;
+        if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
+                ThrowRuntimeError("This record uses an unsupported encoding");
 
-    //------------------------------------------------------------
-    // Skip the sibling count
-    //------------------------------------------------------------
+        //------------------------------------------------------------
+        // Skip the sibling count
+        //------------------------------------------------------------
 
-    unsigned int sibCount =  ntohl(*((unsigned int*)ptr));
-    ptr += 4;
+        unsigned int sibCount =  ntohl(*((unsigned int*)ptr));
+        ptr += 4;
 
-    if(sibCount != 1)
-        return false;
+        if(sibCount != 1)
+                ThrowRuntimeError("Unexpected sibling count for time-series data: " << sibCount);
 
-    //------------------------------------------------------------
-    // Now we are on to the first (and only) sibling.  Skip the length of
-    // the data contents for this sibling
-    //------------------------------------------------------------
+        //------------------------------------------------------------
+        // Now we are on to the first (and only) sibling.  Get the length of
+        // the data contents for this sibling
+        //------------------------------------------------------------
 
-    // ptr += 4;
-    // ptr += 2;  // TypeTag and extra encoding marker
+        unsigned int valLen =  ntohl(*((unsigned int*)ptr));
+        ptr += 4;
 
-    return true;
-}
+        //------------------------------------------------------------
+        // Set the passed ptr pointing to the start of the contents for this
+        // object, and set the returned length to be just the length of the
+        // contents
+        //------------------------------------------------------------
 
-/**.......................................................................
- * Given the start of a key data binary, return the start and size of the
- * contents portion of an encoded riak object
- */
-void Extractor::getToRiakObjectContents(const char* data, size_t size,
-                                        const char** contentsPtr, size_t& contentsSize)
-{
-    const char* ptr = data;
+        ptr++;  // TypeTag
+        ptr++;  // extra encoding marker
 
-    //------------------------------------------------------------
-    // Skip the magic number and version
-    //------------------------------------------------------------
-
-    unsigned char magic    = (*ptr++);
-    unsigned char vers     = (*ptr++);
-
-    if(!(magic == 53 && vers == 1))
-        ThrowRuntimeError("Riak object contents can only be inspected for magic = 53 and v1 encoding");
-
-    //------------------------------------------------------------
-    // Skip the vclock len and vclock contents
-    //------------------------------------------------------------
-
-    unsigned int vClockLen = ntohl(*((unsigned int*)ptr));
-    ptr += 4;
-    ptr += vClockLen;
-
-    unsigned char encMagic = (*ptr++);
-
-    //------------------------------------------------------------
-    // The next byte should now be the msgpack magic number (2).
-    // Check that it is
-    //------------------------------------------------------------
-
-    if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
-        ThrowRuntimeError("This record uses an unsupported encoding");
-
-    //------------------------------------------------------------
-    // Skip the sibling count
-    //------------------------------------------------------------
-
-    unsigned int sibCount =  ntohl(*((unsigned int*)ptr));
-    ptr += 4;
-
-    if(sibCount != 1)
-        ThrowRuntimeError("Unexpected sibling count for time-series data: " << sibCount);
-
-    //------------------------------------------------------------
-    // Now we are on to the first (and only) sibling.  Get the length of
-    // the data contents for this sibling
-    //------------------------------------------------------------
-
-    unsigned int valLen =  ntohl(*((unsigned int*)ptr));
-    ptr += 4;
-
-    //------------------------------------------------------------
-    // Set the passed ptr pointing to the start of the contents for this
-    // object, and set the returned length to be just the length of the
-    // contents
-    //------------------------------------------------------------
-
-    ptr++;  // TypeTag
-    ptr++;  // extra encoding marker
-
-    *contentsPtr  = ptr;
-     contentsSize = valLen;
-}
-
-/**.......................................................................
- * Extract relevant fields from the data array into the expression tree
- */
-void Extractor::parseRiakObjectTypes(const char* data, size_t size)
-{
-    const char* contentsPtr=0;
-    size_t contentsSize=0;
-    getToRiakObjectContents(data, size, &contentsPtr, contentsSize);
-
-    parseTypes(contentsPtr, contentsSize);
-}
-
-/**.......................................................................
- * Extract relevant fields from a riak object into the expression tree
- */
-void Extractor::extractRiakObject(const char* data, size_t size, ExpressionNode<bool>* root)
-{
-    const char* contentsPtr=0;
-    size_t contentsSize=0;
-    getToRiakObjectContents(data, size, &contentsPtr, contentsSize);
-    extract(contentsPtr, contentsSize, root);
+        *contentsPtr  = ptr;
+        *contentsSize = valLen;
 }
 
 
@@ -530,215 +385,58 @@ void Extractor::extractRiakObject(const char* data, size_t size, ExpressionNode<
 // Methods of Msgpack extractor
 //=======================================================================
 
-ExtractorMsgpack::ExtractorMsgpack() {}
-ExtractorMsgpack::~ExtractorMsgpack() {}
-
 void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<bool>* root)
 {
-    cmp_mem_access_t ma;
-    cmp_object_t     map;
-    uint32_t         map_size;
-
-    root->clear();
-
-    {
-            auto oh = msgpack::unpack(data, size);
-            std::ofstream f("/tmp/eleveldb.log");
-            f << "unpacked: " << oh.get();
-    }
-
-    cmp_mem_access_ro_init(&cmp_, &ma, data, size);
-
-    if(!cmp_read_object(&cmp_, &map))
-        ThrowRuntimeError("Error reading msgpack map");
-
-    if(!cmp_object_as_map(&map, &map_size))
-        ThrowRuntimeError("Unable to parse data as a msgpack object");
-
-    //------------------------------------------------------------
-    // Iterate over the object, looking for fields
-    //------------------------------------------------------------
-
-    unsigned nField = 0;
-
-    StringBuf sBuf;
-    for(unsigned int i=0; i < map_size && nField < nField_; i++) {
-
-        //------------------------------------------------------------
-        // First read the field key
-        //------------------------------------------------------------
-
-        cmp_object_t key_obj;
-
-        if(!cmp_read_object(&cmp_, &key_obj) || !cmp_object_is_str(&key_obj))
-            ThrowRuntimeError("Failed to read key");
-
-        uint32_t len=0;
-        if(!cmp_object_as_str(&key_obj, &len))
-            ThrowRuntimeError("Error parsing object as a string");
-
-        sBuf.resize(len+1);
-        if(!cmp_object_to_str(&cmp_, &key_obj, sBuf.getBuf(), len+1))
-            ThrowRuntimeError("Error reading key string");
-
-        std::string key(sBuf.getBuf());
-
-        //------------------------------------------------------------
-        // Next read the field value
-        //------------------------------------------------------------
-
-        cmp_object_t obj;
-
-        if(!cmp_read_object(&cmp_, &obj))
-            ThrowRuntimeError("Unable to read value for field " << key);
-
-        //------------------------------------------------------------
-        // If this field is one of the fields in our filter, try to
-        // process the value
-        //------------------------------------------------------------
-
-        if(expr_fields_.find(key) != expr_fields_.end()) {
-
-            ++nField_;
-
-            DataType::Type specType = expr_fields_[key];
-
-            //------------------------------------------------------------
-            // If there is no value for this field, do nothing
-            //------------------------------------------------------------
-
-            if(CmpUtil::isEmptyList(&obj)) {
-                continue;
-
-                //------------------------------------------------------------
-                // Else set the appropriate value type for this field.
-                //
-                // We have to check the msgpack type every time
-                // because msgpack encoding can in priciple convert
-                // data of the same erlang type into different packed
-                // types.
-                //
-                // Thus we check the type specification for
-                // this field, and convert from whichever type msgpack
-                // chose to the appropriate type for our filter.
-                //------------------------------------------------------------
-
-            } else {
-
-                try {
-
-                    switch (specType) {
-                    case DataType::UINT8:
-                    {
-                        uint8_t val = CmpUtil::objectToUint8(&obj);
-                        root->set_value(key, (void*)&val, specType);
-                    }
-                    break;
-                    case DataType::INT64:
-                    {
-                        int64_t val = CmpUtil::objectToInt64(&obj);
-                        root->set_value(key, (void*)&val, specType);
-                    }
-                    break;
-                    case DataType::UINT64:
-                    {
-                        uint64_t val = CmpUtil::objectToUint64(&obj);
-                        root->set_value(key, (void*)&val, DataType::UINT64);
-                    }
-                    break;
-                    case DataType::DOUBLE:
-                    {
-                        double val = CmpUtil::objectToDouble(&obj);
-                        root->set_value(key, (void*)&val, specType);
-                    }
-                    break;
-
-                    //------------------------------------------------------------
-                    // Type ANY means that the data for this field are
-                    // opaque.  We don't try to interpret these, but treat
-                    // them as binary blobs.
-                    //
-                    // Because the value that they might be compared
-                    // against in a filter could also be a msgpack-ed
-                    // blob, we store the initial msgpack marker as well
-                    // as the data contents.
-                    //
-                    // This means that comparisons like:
-                    //
-                    //   {const, msgpack:pack([1,2,{<<"junk">>}], [{format, jsx}])}
-                    //
-                    // with
-                    //
-                    //   {field, "field1", any}
-                    //
-                    // will work correctly if field1 contains the same blob that
-                    // is msgpack formatted
-                    //------------------------------------------------------------
-
-                    case DataType::ANY:
-                    {
-                        setBinaryVal(root, key, &ma, &cmp_, &obj, true);
-                    }
-                    break;
-
-                    //------------------------------------------------------------
-                    // Other types that are identified as binary will be
-                    // unpacked as binaries and the contents compared
-                    //------------------------------------------------------------
-
-                    default:
-                    {
-                        setBinaryVal(root, key, &ma, &cmp_, &obj, false);
-                    }
-                    break;
-                    }
-                } catch(std::runtime_error& err) {
-                    ThrowRuntimeError(err.what()
-                                      << std::endl << "While processing field: " << key);
+        auto oh = msgpack::unpack(data, size);
+        auto obj = oh.get();
+        std::vector<msgpack::object> oa;
+        obj.convert(oa);
+        size_t ki = 1;
+        for (auto& oi : oa) {
+                std::string key = std::to_string(ki);
+                switch (oi.type) {
+                case msgpack::type::BOOLEAN:
+                {
+                        bool v;
+                        oi.convert(v);
+                        root->set_value(key, (void*)&v, DataType::BOOL);
                 }
-            }
-
-            //------------------------------------------------------------
-            // Skip over the last object if we didn't parse its value
-            //------------------------------------------------------------
-
-        } else {
-            CmpUtil::skipLastReadObject(&ma, &cmp_, &obj);
+                break;
+                case msgpack::type::NEGATIVE_INTEGER:
+                case msgpack::type::POSITIVE_INTEGER:
+                {
+                        int64_t v;
+                        oi.convert(v);
+                        root->set_value(key, (void*)&v, DataType::INT);
+                }
+                break;
+                case msgpack::type::FLOAT32:
+                {
+                        float v;
+                        oi.convert(v);
+                        double vi (v);
+                        root->set_value(key, (void*)&vi, DataType::DOUBLE);
+                }
+                break;
+                case msgpack::type::FLOAT64:
+                {
+                        double v;
+                        oi.convert(v);
+                        root->set_value(key, (void*)&v, DataType::DOUBLE);
+                }
+                break;
+                case msgpack::type::STR:
+                {
+                        std::string v;
+                        oi.convert(v);
+                        root->set_value(key, (void*)&v, DataType::STRING);
+                }
+                break;
+                default:
+                        ThrowRuntimeError("Unhandled type in TS record: " << oi.type);
+                }
+                ++ki;
         }
-    }
-}
-
-/**.......................................................................
- * Set a string value decoded from msgpack as the expression value
- */
-void ExtractorMsgpack::setStringVal(ExpressionNode<bool>* root,
-                                    std::string& key, cmp_object_t* obj)
-{
-    uint32_t len;
-    if(!cmp_object_as_str(obj, &len))
-        ThrowRuntimeError("Error parsing value as string");
-
-    StringBuf val(len+1);
-    char* buf = val.getBuf();
-    if(!cmp_object_to_str(&cmp_, obj, buf, len+1))
-        ThrowRuntimeError("Error extracting string value for key: " << key);
-
-    root->set_value(key, (void*)&buf, DataType::UCHAR_PTR);
-}
-
-/**.......................................................................
- * Set a binary value decoded from msgpack as the expression value
- */
-void ExtractorMsgpack::setBinaryVal(ExpressionNode<bool>* root,
-                                    std::string& key,
-                                    cmp_mem_access_t* ma,
-                                    cmp_ctx_t* cmp,
-                                    cmp_object_t* obj,
-                                    bool includeMarker)
-{
-    size_t size=0;
-    unsigned char* ptr = CmpUtil::getDataPtr(ma, cmp, obj, size, includeMarker);
-    root->set_value(key, &ptr, DataType::UCHAR_PTR, size);
 }
 
 /**.......................................................................
@@ -747,302 +445,5 @@ void ExtractorMsgpack::setBinaryVal(ExpressionNode<bool>* root,
  */
 void ExtractorMsgpack::parseTypes(const char* data, size_t size)
 {
-    field_types_ = CmpUtil::parseMap(data, size);
-    typesParsed_ = true;
-}
-
-//=======================================================================
-// Methods of ExtractorErlang
-//=======================================================================
-
-ExtractorErlang::ExtractorErlang()
-{
-}
-
-ExtractorErlang::~ExtractorErlang()
-{
-}
-
-std::map<std::string, eleveldb::DataType::Type>
-ExtractorErlang::parseMap(const char* data, size_t size)
-{
-    // In Ei format, first byte is a version
-
-    int index=1;
-    return EiUtil::parseMap((char*)data, &index);
-}
-
-void ExtractorErlang::parseTypes(const char* data, size_t size)
-{
-    field_types_ = parseMap(data, size);
-    typesParsed_ = true;
-}
-
-/**.......................................................................
- * Set a binary value decoded from erlang as the expression value
- */
-void ExtractorErlang::setBinaryVal(ExpressionNode<bool>* root, std::string& key,
-                                   char* buf, int* index,
-                                   bool includeMarker)
-{
-    size_t size=0;
-    unsigned char* ptr = EiUtil::getDataPtr(buf, index, size, includeMarker);
-    root->set_value(key, &ptr, DataType::UCHAR_PTR, size);
-}
-
-void ExtractorErlang::extract(const char* ptr, size_t size, ExpressionNode<bool>* root)
-{
-    root->clear();
-
-    // First byte is the version
-
-    int index=1;
-    char* data = (char*)ptr;
-
-    if(!EiUtil::isList(data, &index)) {
-        ThrowRuntimeError("Binary data must contain a term_to_binary() formatted list");
-    }
-
-    unsigned nVal = EiUtil::getListHeader(data, &index);
-
-    //------------------------------------------------------------
-    // Iterate over the object, looking for fields
-    //------------------------------------------------------------
-
-    unsigned nField = 0;
-    for(unsigned int i=0; i < nVal && nField < nField_; i++) {
-
-        if(!EiUtil::isTuple(data, &index) || EiUtil::getTupleHeader(data, &index) != 2) {
-            ThrowRuntimeError("List must consist of {field, val} tuples: " << std::endl
-                              << ErlUtil::formatBinary(data, size));
-        }
-
-        //------------------------------------------------------------
-        // First read the field key
-        //------------------------------------------------------------
-
-        std::string key = EiUtil::getBinaryAsStringEml(data, &index);
-
-        //------------------------------------------------------------
-        // Next up is the field value
-        //------------------------------------------------------------
-
-        //------------------------------------------------------------
-        // If this field is one of the fields in our filter, try to
-        // process the value
-        //------------------------------------------------------------
-
-        if(expr_fields_.find(key) != expr_fields_.end()) {
-
-            DataType::Type specType = expr_fields_[key];
-
-            ++nField_;
-
-            //------------------------------------------------------------
-            // If there is no value for this field, do nothing.
-            // Unlike ExtractorMsgpack, because of the way the ei
-            // interface works, we still need to skip the NIL object
-            //------------------------------------------------------------
-
-            if(EiUtil::isNil(data, &index)) {
-                EiUtil::skipLastReadObject(data, &index);
-                continue;
-
-                //------------------------------------------------------------
-                // Else set the appropriate value type for this field.
-                //
-                // We have to check the type every time because encoding
-                // can in priciple convert data of the same erlang type
-                // into different packed types.
-                //
-                // Thus we check the type specification for this field,
-                // and convert from whichever type was chosen to the
-                // appropriate type for our filter.
-                //------------------------------------------------------------
-
-            } else {
-
-                try {
-
-                    switch (specType) {
-                    case DataType::UINT8:
-                    {
-                        uint8_t val = EiUtil::objectToUint8(data, &index);
-                        root->set_value(key, (void*)&val, specType);
-                    }
-                    break;
-                    case DataType::INT64:
-                    {
-                        int64_t val = EiUtil::objectToInt64(data, &index);
-                        root->set_value(key, (void*)&val, specType);
-                    }
-                    break;
-                    case DataType::UINT64:
-                    {
-                        uint64_t val = EiUtil::objectToUint64(data, &index);
-                        root->set_value(key, (void*)&val, DataType::UINT64);
-                    }
-                    break;
-                    case DataType::DOUBLE:
-                    {
-                        double val = EiUtil::objectToDouble(data, &index);
-                        root->set_value(key, (void*)&val, specType);
-                    }
-                    break;
-
-                    //------------------------------------------------------------
-                    // Type ANY means that the data for this field are
-                    // opaque.  We don't try to interpret these, but treat
-                    // them as binary blobs.
-                    //
-                    // Because the value that they might be compared
-                    // against in a filter could also be a msgpack-ed
-                    // blob, we store the initial msgpack marker as well
-                    // as the data contents.
-                    //
-                    // This means that comparisons like:
-                    //
-                    //   {const, msgpack:pack([1,2,{<<"junk">>}], [{format, jsx}])}
-                    //
-                    // with
-                    //
-                    //   {field, "field1", any}
-                    //
-                    // will work correctly if field1 contains the same blob that
-                    // is msgpack formatted
-                    //------------------------------------------------------------
-
-                    case DataType::ANY:
-                    {
-                        setBinaryVal(root, key,  data, &index, true);
-                    }
-                    break;
-
-                    //------------------------------------------------------------
-                    // Other types that are identified as binary will be
-                    // unpacked as binaries and the contents compared
-                    //------------------------------------------------------------
-
-                    default:
-                    {
-                        setBinaryVal(root, key, data, &index, false);
-                    }
-                    break;
-                    }
-
-                } catch(std::runtime_error& err) {
-                    ThrowRuntimeError(err.what()
-                                      << std::endl << "While processing field: " << key);
-                }
-
-            }
-
-            //------------------------------------------------------------
-            // Skip over the last object if we didn't parse its value
-            //------------------------------------------------------------
-
-        } else {
-            EiUtil::skipLastReadObject(data, &index);
-        }
-    }
-}
-
-//=======================================================================
-// Methods of ExtractorMap
-//=======================================================================
-
-/**.......................................................................
- * Constructor just allocates extractors for all known encodings, and
- * initializes them
- */
-ExtractorMap::ExtractorMap()
-{
-    //------------------------------------------------------------
-    // Since we now allow for multiple encoding types in the data
-    // stream, we simply allocate a map of extractors for all
-    // known encodings
-    //------------------------------------------------------------
-
-    map_[Encoding::encodingByte(Encoding::MSGPACK)] = new ExtractorMsgpack();
-    map_[Encoding::encodingByte(Encoding::ERLANG)]  = new ExtractorErlang();
-
-    //------------------------------------------------------------
-    // Since the data types are now passed with the filter, we no
-    // longer need to wait to decode some data to determine them,
-    // so parse the filter up-front.  Note that to use the code
-    // as-is, we need to set extractor_->typesParsed_ to true as
-    // if we had parsed the datatypes
-    //------------------------------------------------------------
-
-    for(std::map<unsigned char, Extractor*>::iterator iter=map_.begin(); iter != map_.end(); iter++)
-        iter->second->typesParsed_ = true;
-}
-
-/**.......................................................................
- * Destructor frees allocated extractors
- */
-ExtractorMap::~ExtractorMap()
-{
-    for(std::map<unsigned char, Extractor*>::iterator iter=map_.begin(); iter != map_.end(); iter++) {
-        if(iter->second) {
-            delete iter->second;
-            iter->second = 0;
-        }
-    }
-}
-
-/**.......................................................................
- * Return the extractor for the requested encoding flag.  This method
- * is called from a loop that checks first for valid encodings, and
- * therefore does not separately check if the flag is in the map.
- */
-Extractor* ExtractorMap::extractorNoCheck(unsigned char encodingFlag)
-{
-    return map_[encodingFlag];
-}
-
-//-----------------------------------------------------------------------
-// Overloaded methods of Extractor class that perform the indicated
-// operations over all extractors managed by this object
-//-----------------------------------------------------------------------
-
-void ExtractorMap::add_field(std::string field)
-{
-    for(std::map<unsigned char, Extractor*>::iterator iter=map_.begin(); iter != map_.end(); iter++)
-        iter->second->add_field(field);
-}
-
-DataType::Type ExtractorMap::cTypeOf(ErlNifEnv* env,
-                                     ERL_NIF_TERM operand1,
-                                     ERL_NIF_TERM operand2,
-                                     bool throwIfInvalid)
-{
-    DataType::Type type = DataType::UNKNOWN;
-
-    for(std::map<unsigned char, Extractor*>::iterator iter=map_.begin(); iter != map_.end(); iter++)
-        type = iter->second->cTypeOf(env, operand1, operand2, throwIfInvalid);
-
-    return type;
-}
-
-DataType::Type ExtractorMap::cTypeOf(ErlNifEnv* env,
-                                     ERL_NIF_TERM operand,
-                                     bool throwIfInvalid)
-{
-    DataType::Type type = DataType::UNKNOWN;
-
-    for(std::map<unsigned char, Extractor*>::iterator iter=map_.begin(); iter != map_.end(); iter++)
-        type = iter->second->cTypeOf(env, operand, throwIfInvalid);
-
-    return type;
-}
-
-DataType::Type ExtractorMap::cTypeOf(std::string field)
-{
-    DataType::Type type = DataType::UNKNOWN;
-
-    for(std::map<unsigned char, Extractor*>::iterator iter=map_.begin(); iter != map_.end(); iter++)
-        type = iter->second->cTypeOf(field);
-
-    return type;
+        field_types_ = std::move(CmpUtil::parseMap(data, size));
 }

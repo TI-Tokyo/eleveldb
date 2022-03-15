@@ -128,11 +128,9 @@ namespace eleveldb {
 
         static std::string getBinaryAsString(ErlNifEnv* env, ERL_NIF_TERM term);
 
-        static int32_t  getValAsInt32(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
-        static int64_t  getValAsInt64(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
-        static uint32_t getValAsUint32(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
-        static uint8_t  getValAsUint8(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
-        static uint64_t getValAsUint64(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
+        static bool     getValAsBoolean(ErlNifEnv* env, ERL_NIF_TERM term);
+        static int64_t  getValAsInt(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
+        static uint64_t getValAsUint(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
         static double   getValAsDouble(ErlNifEnv* env, ERL_NIF_TERM term, bool exact=true);
 
         static std::string formatTerm(ErlNifEnv* env, ERL_NIF_TERM term);

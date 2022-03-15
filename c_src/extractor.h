@@ -36,7 +36,7 @@ public:
     eleveldb::DataType::Type tsAtomToCtype(std::string type, bool throwIfInvalid);
 
     eleveldb::DataType::Type cTypeOf(ErlNifEnv* env, ERL_NIF_TERM operand,
-                                    bool throwIfInvalid);
+                                     bool throwIfInvalid);
 
     eleveldb::DataType::Type cTypeOf(ErlNifEnv* env,
                                      ERL_NIF_TERM operand1,
@@ -48,12 +48,11 @@ public:
     virtual void parseTypes(const char *data, size_t size) = 0;
     virtual void extract(const char *data, size_t size, ExpressionNode<bool>* root) = 0;
 
-    void extractRiakObject(const char *data, size_t size, ExpressionNode<bool>* root);
-    void parseRiakObjectTypes(const char *data, size_t size);
+    // void extractRiakObject(const char *data, size_t size, ExpressionNode<bool>* root);
+    // void parseRiakObjectTypes(const char *data, size_t size);
 
-    static bool riakObjectContentsCanBeParsed(const char* data, size_t size, unsigned char& encMagic);
-    void getToRiakObjectContents(const char* data, size_t size,
-                                 const char** contentsPtr, size_t& contentsSize);
+        static void seekToRiakObjectContents(const char* data, size_t size,
+                                             const char** contentsPtr, size_t* contentsSize);
 
     DataType::Type convertToSupportedCType(DataType::Type type);
     void printMap(std::map<std::string, DataType::Type>& keyTypeMap);
@@ -64,7 +63,8 @@ public:
 
     unsigned nField_;
 
-    bool typesParsed_;
+protected:
+    bool typesParsed_ = false;
 };
 
 //=======================================================================
@@ -73,66 +73,21 @@ public:
 
 class ExtractorMsgpack : public Extractor {
 private:
-
-    cmp_ctx_t cmp_;
+        cmp_ctx_t cmp_;
 
 public:
+        ExtractorMsgpack() {}
+        virtual ~ExtractorMsgpack() {}
 
-    ExtractorMsgpack();
-    ~ExtractorMsgpack();
+        void parseTypes(const char *data, size_t size);
+        void extract(const char *data, size_t size, ExpressionNode<bool>* root);
 
-    void parseTypes(const char *data, size_t size);
-    void extract(const char *data, size_t size, ExpressionNode<bool>* root);
+        void setBinaryVal(ExpressionNode<bool>* root, std::string& key,
+                          cmp_mem_access_t* ma, cmp_ctx_t* cmp, cmp_object_t* obj, bool includeMarker);
 
-    void setBinaryVal(ExpressionNode<bool>* root, std::string& key,
-                      cmp_mem_access_t* ma, cmp_ctx_t* cmp, cmp_object_t* obj, bool includeMarker);
-
-    void setStringVal(ExpressionNode<bool>* root, std::string& key,
-                      cmp_object_t* obj);
+        void setStringVal(ExpressionNode<bool>* root, std::string& key,
+                          cmp_object_t* obj);
 };
 
-//=======================================================================
-// A class for extracting data encoded in term_to_binary format
-//=======================================================================
-
-class ExtractorErlang : public Extractor {
-public:
-
-    ExtractorErlang();
-    ~ExtractorErlang();
-
-    void parseTypes(const char *data, size_t size);
-    void setBinaryVal(ExpressionNode<bool>* root, std::string& key,
-                      char* buf, int* index, bool includeMarker);
-    std::map<std::string, eleveldb::DataType::Type>
-        parseMap(const char *data, size_t size);
-    void extract(const char* data, size_t size, ExpressionNode<bool>* root);
-};
-
-class ExtractorMap {
-public:
-
-    ExtractorMap();
-    ~ExtractorMap();
-
-    void add_field(std::string field);
-
-    eleveldb::DataType::Type cTypeOf(ErlNifEnv* env, ERL_NIF_TERM operand,
-                                     bool throwIfInvalid);
-
-    eleveldb::DataType::Type cTypeOf(ErlNifEnv* env,
-                                     ERL_NIF_TERM operand1,
-                                     ERL_NIF_TERM operand2,
-                                     bool throwIfInvalid);
-
-    eleveldb::DataType::Type cTypeOf(std::string field);
-
-    Extractor* extractorNoCheck(unsigned char);
-
-private:
-
-    std::map<unsigned char, Extractor*> map_;
-
-};
 
 #endif

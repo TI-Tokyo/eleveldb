@@ -35,16 +35,16 @@ using namespace eleveldb;
 // conversion methods supported by this class
 //=======================================================================
 
-std::map<DataType::Type, EI_CONV_UINT8_FN(*)>  
+std::map<DataType::Type, EI_CONV_UINT8_FN(*)>
 EiUtil::uint8ConvMap_ = EiUtil::constructUint8Map();
 
-std::map<DataType::Type, EI_CONV_INT64_FN(*)>  
+std::map<DataType::Type, EI_CONV_INT64_FN(*)>
 EiUtil::int64ConvMap_ = EiUtil::constructInt64Map();
 
-std::map<DataType::Type, EI_CONV_UINT64_FN(*)> 
+std::map<DataType::Type, EI_CONV_UINT64_FN(*)>
 EiUtil::uint64ConvMap_ = EiUtil::constructUint64Map();
 
-std::map<DataType::Type, EI_CONV_DOUBLE_FN(*)> 
+std::map<DataType::Type, EI_CONV_DOUBLE_FN(*)>
 EiUtil::doubleConvMap_ = EiUtil::constructDoubleMap();
 
 //=======================================================================
@@ -75,7 +75,7 @@ EiUtil::doubleConvMap_ = EiUtil::constructDoubleMap();
 
 #define CONSTRUCT_EI_CONV_MAP(typeTo)                                   \
     /* int types */                                                     \
-    convMap[DataType::INT64]  = EiUtil::convert<typeTo, int64_t>;       \
+    convMap[DataType::INT]  = EiUtil::convert<typeTo, int64_t>;         \
                                                                         \
     /* float types */                                                   \
     convMap[DataType::DOUBLE] = EiUtil::convert<typeTo, double>;        \
@@ -85,7 +85,7 @@ EiUtil::doubleConvMap_ = EiUtil::constructDoubleMap();
                                                                         \
     /* TTB supports BIGs, which are variable-size integers */           \
     convMap[DataType::SMALL_BIG] = EiUtil::convert<typeTo, Big>;        \
-                                                                        
+
 EiUtil::EiUtil()
 {
     initialize(0, 0);
@@ -96,7 +96,7 @@ EiUtil::EiUtil(char* buf)
     initialize(buf, 0);
 }
 
-EiUtil::~EiUtil() {};
+EiUtil::~EiUtil() {}
 
 void EiUtil::initialize(char* buf, int index)
 {
@@ -110,30 +110,30 @@ void EiUtil::initialize(char* buf, int index)
 FN_DEF(int, getVersion,
 
        int version = -1;
-       
+
        if(ei_decode_version(buf, index, &version))
            THROW_ERR;
-       
+
        return version;
     )
 
 FN_DEF(int, getTupleHeader,
 
        int arity = 0;
-       
+
        if(ei_decode_tuple_header(buf, index, &arity))
            THROW_ERR;
-       
+
        return arity;
     )
 
 FN_DEF(int, getListHeader,
 
        int arity = 0;
-       
+
        if(ei_decode_list_header(buf, index, &arity))
            THROW_ERR;
-       
+
        return arity;
     )
 
@@ -142,22 +142,22 @@ FN_DEF(ei_term, decodeTerm,
        ei_term term;
        if(ei_decode_ei_term(buf, index, &term) < 0)
            THROW_ERR;
-       
+
        return term;
     )
 
 FN_DEF(std::string, printTerm,
 
        char* s=0;
-       
+
        if(ei_s_print_term(&s, buf, index))
            THROW_ERR;
-       
+
        std::string ret(s);
-       
+
        if(s)
            free(s);
-       
+
        return ret;
     )
 
@@ -167,24 +167,24 @@ FN_DEF(std::string, printTerm,
 FN_DEF(int, getType,
        int size=0;
        int type=0;
-        
+
        if(ei_get_type(buf, index, &type, &size) < 0)
            THROW_ERR;
-        
+
        return type;
     )
-        
+
 /**.......................................................................
  * Return the size of this object in elements
  */
 FN_DEF(int, getSizeInElements,
-       
+
        int size=0;
        int type=0;
-       
+
        if(ei_get_type(buf, index, &type, &size) < 0)
            THROW_ERR;
-       
+
        return size;
     )
 
@@ -194,18 +194,18 @@ FN_DEF(int, getSizeInElements,
 void EiUtil::getSizeInBytes(char* buf, int* index, unsigned& nHeaderBytes, unsigned& nDataBytes)
 {
     // Store the index position before reading the next term
-    
+
     int indexBefore = *index;
 
     // Initialize these to zero before reading
-    
+
     nHeaderBytes=0;
     nDataBytes=0;
-    
+
     skipNext(buf, index, nHeaderBytes, nDataBytes);
 
     // Restore index to where it was before we called skipNext
-    
+
     *index = indexBefore;
 }
 
@@ -257,7 +257,7 @@ FN_DEF(bool, isAtom,
     )
 
 bool EiUtil::isAtom(int type)
-{ 
+{
     switch(type) {
     case ERL_ATOM_EXT:
     case ERL_SMALL_ATOM_EXT:
@@ -561,7 +561,7 @@ DataType::Type EiUtil::typeOf(int type, char* buf, int* index)
     switch(type) {
     case ERL_SMALL_INTEGER_EXT:
     case ERL_INTEGER_EXT:
-        return DataType::INT64;
+        return DataType::INT;
         break;
     case ERL_FLOAT_EXT:
     case NEW_FLOAT_EXT:
@@ -587,9 +587,6 @@ DataType::Type EiUtil::typeOf(int type, char* buf, int* index)
     case ERL_STRING_EXT:
         return DataType::STRING;
         break;
-    case ERL_BINARY_EXT:
-        return DataType::UCHAR_PTR;
-        break;
     case ERL_SMALL_BIG_EXT:
         return DataType::SMALL_BIG;
         break;
@@ -600,14 +597,14 @@ DataType::Type EiUtil::typeOf(int type, char* buf, int* index)
 }
 
 /**.......................................................................
- * Function to skip the next item in this buffer.  
- * 
+ * Function to skip the next item in this buffer.
+ *
  * int* index should point to a valid opcode on entry
  */
 FN_DEF(void, skipLastReadObject,
        unsigned nHead=0;
        unsigned nData=0;
-       
+
        return skipNext(buf, index, nHead, nData);
     )
 
@@ -628,14 +625,14 @@ void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& n
        {
            nHeaderBytes += 1;
            nDataBytes   += 1;
-           
+
            *index += 2;
        }
        break;
 
        //------------------------------------------------------------
        // int32
-       // 
+       //
        //   byte 0:   opcode
        //   byte 1-3: 4-byte val
        //------------------------------------------------------------
@@ -742,7 +739,7 @@ void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& n
            nHeaderBytes += 2;
 
            *index += 2;
-           
+
            unsigned int nHead=0, nData=0;
 
            for(unsigned i=0; i < nelem; i++)
@@ -796,7 +793,7 @@ void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& n
        case ERL_NIL_EXT:
        {
            nHeaderBytes += 1;
-           
+
            *index += 1;
        }
        break;
@@ -829,7 +826,7 @@ void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& n
        //   byte 1-3: unsigned int nelem
        //
        // Then each element in turn, terminated by a tail.
-       // 
+       //
        // www1.erlang.org/doc/apps/erts/erl_ext_dist.html says that
        // the tail is a empty list (ERL_NIL_EXT) if it is a proper
        // list, but may be anything if the list is improper.  Because
@@ -848,7 +845,7 @@ void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& n
 
            unsigned int nHead=0, nData=0;
 
-           for(unsigned i=0; i < nelem+1; i++) 
+           for(unsigned i=0; i < nelem+1; i++)
                skipNext(buf, index, nHead, nData);
 
            // For lists, all subsequent bytes count as part of the
@@ -920,7 +917,7 @@ void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& n
        default:
            ThrowRuntimeError("Unsupported term encountered -- can't skip");
        }
-       
+
        return;
 }
 
@@ -934,31 +931,31 @@ void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& n
 FN_DEF(std::string, formatTerm,
 
        int type = getType(buf, index);
-       
+
        if(isAtom(type))
            return formatAtom(buf, index);
-       
+
        if(isInteger(type))
            return formatInteger(buf, index);
-       
+
        if(isFloat(type))
            return formatFloat(buf, index);
-       
-       if(isTuple(type)) 
+
+       if(isTuple(type))
            return formatTuple(buf, index);
-       
+
        if(isBinary(type))
            return formatBinary(buf, index);
-       
+
        if(isString(type))
            return formatString(buf, index);
-       
+
        if(isList(type))
            return formatList(buf, index);
 
        if(isBig(buf, index))
            return formatBig(buf, index);
-       
+
        if(isNil(type))
            return "[]";
 
@@ -969,21 +966,21 @@ FN_DEF(std::string, formatTerm,
     )
 
 FN_DEF(std::string, formatAtom,
-       
+
        std::ostringstream os;
        os << getAtom(buf, index);
        return os.str();
     )
 
 FN_DEF(std::string, formatInteger,
-       
+
        std::ostringstream os;
        os << getLong(buf, index);
        return os.str();
     )
 
 FN_DEF(std::string, formatBig,
-       
+
        std::ostringstream os;
        EiUtil::Big big = getBig(buf, index);
        os << (big.isSigned_ ? "-" : "") << big.val_;
@@ -1010,9 +1007,9 @@ FN_DEF(std::string, formatTuple,
 
            os << formatTerm(buf, index);
        }
-       
+
        os << "}";
-       
+
        return os.str();
     )
 
@@ -1038,7 +1035,7 @@ FN_DEF(std::string, formatList,
            os << formatTerm(buf, index);
        }
        os << "]";
-       
+
        return os.str();
     )
 
@@ -1063,7 +1060,7 @@ FN_DEF(std::string, formatBinary,
            os << (int)bin[i];
        }
        os << ">>";
-       
+
        return os.str();
     )
 
@@ -1081,7 +1078,7 @@ FN_DEF(std::string, formatString,
            os << (int)str[i];
        }
        os << "])";
-       
+
        return os.str();
     )
 
@@ -1101,12 +1098,12 @@ FN_DEF(std::string, getString,
        // binary data into the return buffer, so the buffer should be
        // size+1 bytes long, and does not need to be explicitly
        // terminated
-       
+
        StringBuf sBuf(size+1);
 
        if(ei_decode_string(buf, index, sBuf.getBuf()) < 0)
            THROW_ERR;
-       
+
        return sBuf.getString();
     )
 
@@ -1114,11 +1111,11 @@ FN_DEF(std::vector<unsigned char>, getBinary,
 
        int size = getSizeInElements(buf, index);
        std::vector<unsigned char> ret(size);
-       
+
        long len = 0;
        if(ei_decode_binary(buf, index, (void*)&ret[0], &len))
            THROW_ERR;
-       
+
        return ret;
     )
 
@@ -1130,10 +1127,10 @@ FN_DEF(std::string, getBinaryAsString,
        // buffer.  If we are interpreting the data as a string, the
        // return buffer must be NULL terminated, else the conversion
        // to a string will not be well defined
-       
+
        StringBuf sBuf(size+1);
        sBuf.getBuf()[size] = '\0';
-       
+
        long len = 0;
        if(ei_decode_binary(buf, index, (void*)sBuf.getBuf(), &len))
            THROW_ERR;
@@ -1152,19 +1149,19 @@ FN_DEF(std::string, getBinaryAsStringEml,
 
        // Copy the bytes out of the payload into a StringBuf, null
        // terminating the result since it will be interpreted as a
-       // string (hence size+1)                                      
-       
+       // string (hence size+1)
+
        StringBuf sBuf(size+1);
        char* bufPtr = sBuf.getBuf();
        bufPtr[size] = '\0';
-       
+
        for(unsigned i=0; i < size; i++)
            bufPtr[i] = buf[*index + 5 + i];
 
        // Advance the index pointer to the next item
-       
+
        *index += 5 + size;
-       
+
        return sBuf.getString();
     )
 
@@ -1174,7 +1171,7 @@ FN_DEF(std::string, getAtom,
 
        if(ei_decode_atom(buf, index, str) < 0)
            THROW_ERR;
-       
+
        return str;
     )
 
@@ -1204,7 +1201,7 @@ FN_DEF(double, getDouble,
        double val;
        if(ei_decode_double(buf, index, &val) < 0)
            THROW_ERR;
-       
+
        return val;
     )
 
@@ -1222,7 +1219,7 @@ FN_DEF(unsigned long, getUlong,
        unsigned long val;
        if(ei_decode_ulong(buf, index, &val) < 0)
            THROW_ERR;
-       
+
        return val;
     )
 
@@ -1253,16 +1250,16 @@ FN_DEF(EiUtil::Big, getBig,
 
        if(big.size_ > 8)
            ThrowRuntimeError("Big value is too large (" << big.size_ << ")");
-       
+
        char* valPtr = (char*)&big.val_;
-       
+
        for(unsigned i=0; i < big.size_; i++)
            valPtr[i] = buf[*index + 3 + i];
 
        // Increment the index so it points to the next object in the buffer
-       
+
        *index += 3 + big.size_;
-       
+
        return big;
     )
 
@@ -1274,12 +1271,12 @@ FN_DEF(uint64_t, getBigAsUint64,
        if(!isBig(buf, index, size, isSigned))
            ThrowRuntimeError("Binary data is not a big");
 
-       if(isSigned) 
+       if(isSigned)
            ThrowRuntimeError("This is a signed type -- can't convert to uint64");
 
        if(size > 8)
            ThrowRuntimeError("Big value is too large (" << size << ")");
-       
+
        unsigned long long val=0;
 
        char* valPtr = (char*)&val;
@@ -1288,9 +1285,9 @@ FN_DEF(uint64_t, getBigAsUint64,
        }
 
        // Increment the index so it points to the next object in the buffer
-       
+
        *index += 3+size;
-       
+
        return val;
     )
 
@@ -1310,24 +1307,24 @@ std::map<std::string, DataType::Type> EiUtil::parseMap(char* buf, int* index)
 
     if(!isList(buf, index))
         ThrowRuntimeError("Binary data must contain a term_to_binary() formatted list");
-    
+
     unsigned nVal = getListHeader(buf, index);
-    
+
     for(unsigned int i=0; i < nVal; i++) {
-        
+
         if(!isTuple(buf, index) || getTupleHeader(buf, index) != 2) {
             ThrowRuntimeError("List must consist of {field, val} tuples: ");
         }
-        
+
         std::string str = getBinaryAsString(buf, index);
-        
+
         keyValMap[str] = typeOf(buf, index);
 
         // Read past
-        
+
         formatTerm(buf, index);
     }
-    
+
     return keyValMap;
 }
 
@@ -1341,7 +1338,7 @@ void EiUtil::printMap(std::map<std::string, DataType::Type>& keyValMap)
         COUT(iter->first << " " << iter->second);
     }
 }
-                      
+
 /**.......................................................................
  * Return a pointer to the data for the next object, and its size
  */
@@ -1356,7 +1353,7 @@ unsigned char* EiUtil::getDataPtr(char* buf, int* index, size_t& size, bool incl
 
     // If including the opcode and prefix, then the total size is
     // nHead + nData, Else it is just the data payload
-    
+
     size = (includeMarker ? nHead + nData : nData);
 
     // If we are including the opcode and prefix, just return the
@@ -1366,13 +1363,13 @@ unsigned char* EiUtil::getDataPtr(char* buf, int* index, size_t& size, bool incl
     int ind = *index + (includeMarker ? 0 : nHead);
 
     // And advance the index pointer as if we had decoded this object
-    
+
     *index += nHead + nData;
-    
+
     return (unsigned char*)(buf + ind);
 }
-                                                 
-void EiUtil::checkBuf() 
+
+void EiUtil::checkBuf()
 {
     if(!buf_)
         ThrowRuntimeError("No buffer has been set");
@@ -1390,21 +1387,21 @@ CONVERT_DECL(uint8_t, bool, getBool,
              return val;
     );
 
-CONVERT_DECL(uint8_t, uint8_t, getUlong, 
+CONVERT_DECL(uint8_t, uint8_t, getUlong,
              return val;
     );
 
-CONVERT_DECL(uint8_t, int8_t, getLong, 
+CONVERT_DECL(uint8_t, int8_t, getLong,
              if(val >= 0)
                  return val;
     );
 
-CONVERT_DECL(uint8_t, int16_t, getLong, 
+CONVERT_DECL(uint8_t, int16_t, getLong,
              if(val >= 0 && val <= UCHAR_MAX)
                  return val;
     );
 
-CONVERT_DECL(uint8_t, uint16_t, getUlong, 
+CONVERT_DECL(uint8_t, uint16_t, getUlong,
              if(val <= UCHAR_MAX)
                  return val;
     );
@@ -1452,19 +1449,19 @@ CONVERT_DECL(int64_t, bool, getBool,
              return val;
     );
 
-CONVERT_DECL(int64_t, uint8_t, getUlong, 
+CONVERT_DECL(int64_t, uint8_t, getUlong,
              return val;
     );
 
-CONVERT_DECL(int64_t, int8_t, getLong, 
+CONVERT_DECL(int64_t, int8_t, getLong,
              return val;
     );
 
-CONVERT_DECL(int64_t, int16_t, getLong, 
+CONVERT_DECL(int64_t, int16_t, getLong,
              return val;
     );
 
-CONVERT_DECL(int64_t, uint16_t, getUlong, 
+CONVERT_DECL(int64_t, uint16_t, getUlong,
              return val;
     );
 
@@ -1508,21 +1505,21 @@ CONVERT_DECL(uint64_t, bool, getBool,
              return val;
     );
 
-CONVERT_DECL(uint64_t, uint8_t, getUlong, 
+CONVERT_DECL(uint64_t, uint8_t, getUlong,
              return val;
     );
 
-CONVERT_DECL(uint64_t, int8_t, getLong, 
+CONVERT_DECL(uint64_t, int8_t, getLong,
              if(val >= 0)
                  return val;
     );
 
-CONVERT_DECL(uint64_t, int16_t, getLong, 
+CONVERT_DECL(uint64_t, int16_t, getLong,
              if(val >= 0)
                  return val;
     );
 
-CONVERT_DECL(uint64_t, uint16_t, getUlong, 
+CONVERT_DECL(uint64_t, uint16_t, getUlong,
              return val;
     );
 
@@ -1567,19 +1564,19 @@ CONVERT_DECL(double, bool, getBool,
              return val;
     );
 
-CONVERT_DECL(double, uint8_t, getUlong, 
+CONVERT_DECL(double, uint8_t, getUlong,
              return val;
     );
 
-CONVERT_DECL(double, int8_t, getLong, 
+CONVERT_DECL(double, int8_t, getLong,
              return val;
     );
 
-CONVERT_DECL(double, int16_t, getLong, 
+CONVERT_DECL(double, int16_t, getLong,
              return val;
     );
 
-CONVERT_DECL(double, uint16_t, getUlong, 
+CONVERT_DECL(double, uint16_t, getUlong,
              return val;
     );
 
@@ -1624,7 +1621,7 @@ uint8_t EiUtil::objectToUint8(char* buf, int* index)
     DataType::Type type = typeOf(getType(buf, index), buf, index);
     if(EiUtil::uint8ConvMap_.find(type) != EiUtil::uint8ConvMap_.end())
         return EiUtil::uint8ConvMap_[type](buf, index);
-    else 
+    else
         ThrowRuntimeError("Object of type " << typeStrOf(buf, index) << " can't be converted to a uint8_t type");
     return 0;
 }
@@ -1635,7 +1632,7 @@ int64_t EiUtil::objectToInt64(char* buf, int* index)
 
     if(EiUtil::int64ConvMap_.find(type) != EiUtil::int64ConvMap_.end())
         return EiUtil::int64ConvMap_[type](buf, index);
-    else 
+    else
         ThrowRuntimeError("Object of type " << typeStrOf(buf, index) << " can't be converted to a int64_t type");
     return 0;
 }
@@ -1645,7 +1642,7 @@ uint64_t EiUtil::objectToUint64(char* buf, int* index)
     DataType::Type type = typeOf(getType(buf, index), buf, index);
     if(EiUtil::uint64ConvMap_.find(type) != EiUtil::uint64ConvMap_.end())
         return EiUtil::uint64ConvMap_[type](buf, index);
-    else 
+    else
         ThrowRuntimeError("Object of type " << typeStrOf(buf, index) << " can't be converted to a uint64_t type");
     return 0;
 }
@@ -1655,7 +1652,7 @@ double EiUtil::objectToDouble(char* buf, int* index)
     DataType::Type type = typeOf(getType(buf, index), buf, index);
     if(EiUtil::doubleConvMap_.find(type) != EiUtil::doubleConvMap_.end())
         return EiUtil::doubleConvMap_[type](buf, index);
-    else 
+    else
         ThrowRuntimeError("Object of type " << typeStrOf(buf, index) << " can't be converted to a double type");
     return 0;
 }
@@ -1691,4 +1688,3 @@ std::map<DataType::Type, EI_CONV_DOUBLE_FN(*)>  EiUtil::constructDoubleMap()
     CONSTRUCT_EI_CONV_MAP(double);
     return convMap;
 }
-

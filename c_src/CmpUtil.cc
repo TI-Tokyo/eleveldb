@@ -1,33 +1,15 @@
 #include "CmpUtil.h"
 #include "StringBuf.h"
-
 #include "exceptionutils.h"
 
-#include <sstream>
-#include <cmath>
-#include <iomanip>
+#include <msgpack.hpp>
 
-#include <climits>
+#include <sstream>
+#include <map>
 
 using namespace std;
 
 using namespace eleveldb;
-
-//=======================================================================
-// Initialize static maps of conversion functions here
-//=======================================================================
-
-std::map<uint8_t, CONV_UINT8_FN(*)>  
-CmpUtil::uint8ConvMap_ = CmpUtil::constructUint8Map();
-
-std::map<uint8_t, CONV_INT64_FN(*)>  
-CmpUtil::int64ConvMap_ = CmpUtil::constructInt64Map();
-
-std::map<uint8_t, CONV_UINT64_FN(*)> 
-CmpUtil::uint64ConvMap_ = CmpUtil::constructUint64Map();
-
-std::map<uint8_t, CONV_DOUBLE_FN(*)> 
-CmpUtil::doubleConvMap_ = CmpUtil::constructDoubleMap();
 
 //=======================================================================
 // A macro for declaring a template convert specialization
@@ -49,118 +31,6 @@ CmpUtil::doubleConvMap_ = CmpUtil::constructDoubleMap();
         }                                                               \
     }\
 
-//=======================================================================
-// A macro for performing all possible conversions on a msgpack data
-// type
-//=======================================================================
-
-#define CONVERT_OBJECT(typeTo)  \
-    if(cmp_object_is_char(obj))                 \
-        return convert<typeTo, int8_t>(obj);    \
-                                                \
-    if(cmp_object_is_short(obj))                \
-        return convert<typeTo, int16_t>(obj);   \
-                                                \
-    if(cmp_object_is_int(obj))                  \
-        return convert<typeTo, int32_t>(obj);   \
-                                                \
-    if(cmp_object_is_long(obj))                 \
-        return convert<typeTo, int64_t>(obj);   \
-                                                \
-    if(cmp_object_is_uchar(obj))                \
-        return convert<typeTo, uint8_t>(obj);   \
-                                                \
-    if(cmp_object_is_ushort(obj))               \
-        return convert<typeTo, uint16_t>(obj);  \
-                                                \
-    if(cmp_object_is_uint(obj))                 \
-        return convert<typeTo, uint32_t>(obj);  \
-                                                \
-    if(cmp_object_is_ulong(obj))                \
-        return convert<typeTo, uint64_t>(obj);  \
-                                                \
-    if(cmp_object_is_float(obj))                \
-        return convert<typeTo, float>(obj);     \
-                                                \
-    if(cmp_object_is_double(obj))               \
-        return convert<typeTo, double>(obj);    \
-                                                \
-    if(cmp_object_is_bool(obj))                 \
-        return convert<typeTo, bool>(obj);      \
-                                                                        \
-    ThrowRuntimeError("Object can't be converted to a #typeTo");        \
-    return (typeTo) 0;\
-
-//=======================================================================
-// A macro for constructing a map of conversion functions to the
-// specified type
-//=======================================================================
-
-#define CONSTRUCT_CONV_MAP(typeTo)                                      \
-    /* char types */                                                    \
-    convMap[CMP_TYPE_POSITIVE_FIXNUM] = CmpUtil::convert<typeTo, int8_t>; \
-    convMap[CMP_TYPE_NEGATIVE_FIXNUM] = CmpUtil::convert<typeTo, int8_t>; \
-    convMap[CMP_TYPE_SINT8]           = CmpUtil::convert<typeTo, int8_t>; \
-    convMap[CMP_TYPE_UINT8]           = CmpUtil::convert<typeTo, int8_t>; \
-                                                                        \
-    /* short types */                                                   \
-    convMap[CMP_TYPE_NEGATIVE_FIXNUM] = CmpUtil::convert<typeTo, int16_t>; \
-    convMap[CMP_TYPE_SINT8]           = CmpUtil::convert<typeTo, int16_t>; \
-    convMap[CMP_TYPE_SINT16]          = CmpUtil::convert<typeTo, int16_t>; \
-                                                                        \
-    /* int types */                                                     \
-    convMap[CMP_TYPE_NEGATIVE_FIXNUM] = CmpUtil::convert<typeTo, int32_t>; \
-    convMap[CMP_TYPE_SINT8]           = CmpUtil::convert<typeTo, int32_t>; \
-    convMap[CMP_TYPE_SINT16]          = CmpUtil::convert<typeTo, int32_t>; \
-    convMap[CMP_TYPE_SINT32]          = CmpUtil::convert<typeTo, int32_t>; \
-                                                                        \
-    /* long types */                                                    \
-    convMap[CMP_TYPE_NEGATIVE_FIXNUM] = CmpUtil::convert<typeTo, int64_t>; \
-    convMap[CMP_TYPE_SINT8]           = CmpUtil::convert<typeTo, int64_t>; \
-    convMap[CMP_TYPE_SINT16]          = CmpUtil::convert<typeTo, int64_t>; \
-    convMap[CMP_TYPE_SINT32]          = CmpUtil::convert<typeTo, int64_t>; \
-    convMap[CMP_TYPE_SINT64]          = CmpUtil::convert<typeTo, int64_t>; \
-                                                                        \
-    /* uchar types */                                                   \
-    convMap[CMP_TYPE_POSITIVE_FIXNUM] = CmpUtil::convert<typeTo, uint8_t>; \
-    convMap[CMP_TYPE_UINT8]          = CmpUtil::convert<typeTo, uint8_t>; \
-                                                                        \
-    /* ushort types */                                                  \
-    convMap[CMP_TYPE_POSITIVE_FIXNUM] = CmpUtil::convert<typeTo, uint16_t>; \
-    convMap[CMP_TYPE_UINT8]           = CmpUtil::convert<typeTo, uint16_t>; \
-    convMap[CMP_TYPE_UINT16]          = CmpUtil::convert<typeTo, uint16_t>; \
-                                                                        \
-    /* uint types */                                                    \
-    convMap[CMP_TYPE_POSITIVE_FIXNUM] = CmpUtil::convert<typeTo, uint32_t>; \
-    convMap[CMP_TYPE_UINT8]           = CmpUtil::convert<typeTo, uint32_t>; \
-    convMap[CMP_TYPE_UINT16]          = CmpUtil::convert<typeTo, uint32_t>; \
-    convMap[CMP_TYPE_UINT32]          = CmpUtil::convert<typeTo, uint32_t>; \
-                                                                        \
-    /* ulong types */                                                   \
-    convMap[CMP_TYPE_POSITIVE_FIXNUM] = CmpUtil::convert<typeTo, uint64_t>; \
-    convMap[CMP_TYPE_UINT8]           = CmpUtil::convert<typeTo, uint64_t>; \
-    convMap[CMP_TYPE_UINT16]          = CmpUtil::convert<typeTo, uint64_t>; \
-    convMap[CMP_TYPE_UINT32]          = CmpUtil::convert<typeTo, uint64_t>; \
-    convMap[CMP_TYPE_UINT64]          = CmpUtil::convert<typeTo, uint64_t>; \
-                                                                        \
-    /* float types */                                                   \
-    convMap[CMP_TYPE_FLOAT]          = CmpUtil::convert<typeTo, float>; \
-                                                                        \
-    /* double types */                                                  \
-    convMap[CMP_TYPE_DOUBLE]         = CmpUtil::convert<typeTo, double>; \
-                                                                        \
-    /* bool types */                                                    \
-    convMap[CMP_TYPE_BOOLEAN]        = CmpUtil::convert<typeTo, bool>;  \
-
-/**.......................................................................
- * Constructor.
- */
-CmpUtil::CmpUtil() {}
-
-/**.......................................................................
- * Destructor.
- */
-CmpUtil::~CmpUtil() {}
 
 /**.......................................................................
  * Parse a map encoded as a msgpack object into component keys and
@@ -169,60 +39,28 @@ CmpUtil::~CmpUtil() {}
 std::map<std::string, DataType::Type>
 CmpUtil::parseMap(const char* data, size_t size)
 {
-    cmp_mem_access_t ma;
-    cmp_object_t     map;
-    uint32_t         map_size;
-    cmp_ctx_t        cmp;
-
     std::map<std::string, DataType::Type> keyValMap;
-    
-    cmp_mem_access_ro_init(&cmp, &ma, data, size);
 
-    if(!cmp_read_object(&cmp, &map))
-      ThrowRuntimeError("Error reading msgpack map");
+    static auto M = std::map<typeof(msgpack::type::BOOLEAN),
+                             typeof(DataType::Type)> {
+            {msgpack::type::BOOLEAN,          DataType::BOOL},
+            {msgpack::type::NEGATIVE_INTEGER, DataType::INT},
+            {msgpack::type::POSITIVE_INTEGER, DataType::INT},
+            {msgpack::type::FLOAT32,          DataType::DOUBLE},
+            {msgpack::type::FLOAT64,          DataType::DOUBLE},
+            {msgpack::type::STR,              DataType::STRING},
+    };
 
-    if(!cmp_object_as_map(&map, &map_size))
-      ThrowRuntimeError("Unable to parse data as a msgpack map");
+    auto oh = msgpack::unpack(data, size);
+    auto obj = oh.get();
+    std::vector<msgpack::object> oa;
+    obj.convert(oa);
 
-    //------------------------------------------------------------
-    // Iterate over the map, inspecting field names
-    //------------------------------------------------------------
-
-    StringBuf sBuf;
-    for(unsigned int i=0; i < map_size; i++) {
-
-        //------------------------------------------------------------
-        // First read the field key
-        //------------------------------------------------------------
-
-        cmp_object_t key_obj;
-
-        if(!cmp_read_object(&cmp, &key_obj) || !cmp_object_is_str(&key_obj))
-          ThrowRuntimeError("Failed to read key");
-
-        uint32_t len=0;
-        if(!cmp_object_as_str(&key_obj, &len))
-          ThrowRuntimeError("Error parsing object as a string");
-
-        sBuf.resize(len+1);
-        if(!cmp_object_to_str(&cmp, &key_obj, sBuf.getBuf(), len+1))
-          ThrowRuntimeError("Error reading key string");
-
-        std::string key(sBuf.getBuf());
-
-        //------------------------------------------------------------
-        // Next read the field value
-        //------------------------------------------------------------
-
-        cmp_object_t obj;
-
-        if(!cmp_read_object(&cmp, &obj))
-            ThrowRuntimeError("Unable to read value for field " << key);
-
-        DataType::Type type = typeOf(&obj);
-        keyValMap[key] = type;
-
-        skipLastReadObject(&ma, &cmp, &obj);
+    size_t ki = 1;
+    for (auto& oi : oa) {
+            const std::string key = std::to_string(ki);
+            keyValMap[key] = M[oi.type];
+            ++ki;
     }
 
     return keyValMap;
@@ -234,14 +72,6 @@ CmpUtil::parseMap(const char* data, size_t size)
 DataType::Type CmpUtil::typeOf(cmp_object_t* obj)
 {
     switch (obj->type) {
-    case CMP_TYPE_POSITIVE_FIXNUM:
-    case CMP_TYPE_UINT8:
-        return DataType::UINT8;
-        break;
-    case CMP_TYPE_NEGATIVE_FIXNUM:
-    case CMP_TYPE_SINT8:
-        return DataType::INT8;
-        break;
     case CMP_TYPE_FIXMAP:
     case CMP_TYPE_MAP16:
     case CMP_TYPE_MAP32:
@@ -267,7 +97,7 @@ DataType::Type CmpUtil::typeOf(cmp_object_t* obj)
     case CMP_TYPE_BIN8:
     case CMP_TYPE_BIN16:
     case CMP_TYPE_BIN32:
-        return DataType::BIN;
+        return DataType::STRING;
         break;
     case CMP_TYPE_FIXEXT1:
     case CMP_TYPE_FIXEXT2:
@@ -280,29 +110,25 @@ DataType::Type CmpUtil::typeOf(cmp_object_t* obj)
         return DataType::EXT;
         break;
     case CMP_TYPE_FLOAT:
-        return DataType::FLOAT;
-        break;
     case CMP_TYPE_DOUBLE:
         return DataType::DOUBLE;
         break;
+
+    case CMP_TYPE_POSITIVE_FIXNUM:
+    case CMP_TYPE_UINT8:
     case CMP_TYPE_UINT16:
-        return DataType::UINT16;
-        break;
-    case CMP_TYPE_SINT16:
-        return DataType::INT16;
-        break;
     case CMP_TYPE_UINT32:
-        return DataType::UINT32;
-        break;
-    case CMP_TYPE_SINT32:
-        return DataType::INT32;
-        break;
     case CMP_TYPE_UINT64:
-        return DataType::UINT64;
+        return DataType::UINT;
         break;
+    case CMP_TYPE_NEGATIVE_FIXNUM:
+    case CMP_TYPE_SINT8:
+    case CMP_TYPE_SINT16:
+    case CMP_TYPE_SINT32:
     case CMP_TYPE_SINT64:
-        return DataType::INT64;
+        return DataType::INT;
         break;
+
     default:
         return DataType::UNKNOWN;
         break;
@@ -427,7 +253,7 @@ std::string CmpUtil::typeStrOf(cmp_object_t* obj)
 }
 
 /**.......................................................................
- * Return the size, in bytes, of the passed object.  
+ * Return the size, in bytes, of the passed object.
  *
  * NB: After a call to this function, the memory pointer will be
  * advanced to the end of the current object.
@@ -581,15 +407,15 @@ size_t CmpUtil::mapSize(cmp_mem_access_t* ma, cmp_ctx_t* cmp, cmp_object_t* map)
         cmp_object_t obj;
 
         if(cmp_read_object(cmp, &obj))
-            ThrowRuntimeError("Failed to read first object in element " 
+            ThrowRuntimeError("Failed to read first object in element "
                               << i << "of the map");
 
         size += markerSize() + prefixSizeOf(&obj) + dataSizeOf(ma, cmp, &obj);
 
         if(!cmp_read_object(cmp, &obj))
-            ThrowRuntimeError("Failed to read second object in element " 
+            ThrowRuntimeError("Failed to read second object in element "
                               << i << "of the map");
-        
+
         size += markerSize() + prefixSizeOf(&obj) + dataSizeOf(ma, cmp, &obj);
     }
 
@@ -621,7 +447,7 @@ size_t CmpUtil::arraySize(cmp_mem_access_t* ma, cmp_ctx_t* cmp, cmp_object_t* ar
 
         if(!cmp_read_object(cmp, &obj))
             ThrowRuntimeError("Failed to read element " << i << "of the array");
-        
+
         // Array data consists of sequential data of the same type --
         // no embedded markers, as with a map
 
@@ -695,7 +521,7 @@ unsigned char* CmpUtil::getDataPtr(cmp_mem_access_t* ma, cmp_ctx_t* cmp,
     // size, since that can in principle advance the pointer
     //------------------------------------------------------------
 
-    unsigned char* ptr = 
+    unsigned char* ptr =
         (unsigned char*)cmp_mem_access_get_ptr_at_pos(ma, cmp_mem_access_get_pos(ma));
 
     //------------------------------------------------------------
@@ -735,21 +561,21 @@ CONVERT_DECL(uint8_t, bool, bool,
              return val;
     );
 
-CONVERT_DECL(uint8_t, uint8_t, uchar, 
+CONVERT_DECL(uint8_t, uint8_t, uchar,
              return val;
     );
 
-CONVERT_DECL(uint8_t, int8_t, char, 
+CONVERT_DECL(uint8_t, int8_t, char,
              if(val >= 0)
                  return val;
     );
 
-CONVERT_DECL(uint8_t, int16_t, short, 
+CONVERT_DECL(uint8_t, int16_t, short,
              if(val >= 0 && val <= UCHAR_MAX)
                  return val;
     );
 
-CONVERT_DECL(uint8_t, uint16_t, ushort, 
+CONVERT_DECL(uint8_t, uint16_t, ushort,
              if(val <= UCHAR_MAX)
                  return val;
     );
@@ -784,222 +610,221 @@ CONVERT_DECL(uint8_t, double, double,
                  return val;
     );
 
-//------------------------------------------------------------
-// Conversions to int64_t
-//------------------------------------------------------------
+// //------------------------------------------------------------
+// // Conversions to int64_t
+// //------------------------------------------------------------
 
-CONVERT_DECL(int64_t, bool, bool,
-             return val;
-    );
+// CONVERT_DECL(int64_t, bool, bool,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, uint8_t, uchar, 
-             return val;
-    );
+// CONVERT_DECL(int64_t, uint8_t, uchar,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, int8_t, char, 
-             return val;
-    );
+// CONVERT_DECL(int64_t, int8_t, char,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, int16_t, short, 
-             return val;
-    );
+// CONVERT_DECL(int64_t, int16_t, short,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, uint16_t, ushort, 
-             return val;
-    );
+// CONVERT_DECL(int64_t, uint16_t, ushort,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, int32_t, int,
-             return val;
-    );
+// CONVERT_DECL(int64_t, int32_t, int,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, uint32_t, uint,
-             return val;
-    );
+// CONVERT_DECL(int64_t, uint32_t, uint,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, int64_t, long,
-             return val;
-    );
+// CONVERT_DECL(int64_t, int64_t, long,
+//              return val;
+//     );
 
-CONVERT_DECL(int64_t, uint64_t, ulong,
-             if(val <= LLONG_MAX)
-                 return val;
-    );
+// CONVERT_DECL(int64_t, uint64_t, ulong,
+//              if(val <= LLONG_MAX)
+//                  return val;
+//     );
 
-CONVERT_DECL(int64_t, float, float,
-             if(val <= (float)LLONG_MAX && val >= (float)LLONG_MIN && !(fabs(val - (int64_t)val) > 0.0))
-                 return val;
-    );
+// CONVERT_DECL(int64_t, float, float,
+//              if(val <= (float)LLONG_MAX && val >= (float)LLONG_MIN && !(fabs(val - (int64_t)val) > 0.0))
+//                  return val;
+//     );
 
-CONVERT_DECL(int64_t, double, double,
-             if(val <= (double)LLONG_MAX && val >= (double)LLONG_MIN && !(fabs(val - (int64_t)val) > 0.0))
-                 return val;
-    );
-
-
-//------------------------------------------------------------
-// Conversions to uint64_t
-//------------------------------------------------------------
-
-CONVERT_DECL(uint64_t, bool, bool,
-             return val;
-    );
-
-CONVERT_DECL(uint64_t, uint8_t, uchar, 
-             return val;
-    );
-
-CONVERT_DECL(uint64_t, int8_t, char, 
-             if(val >= 0)
-                 return val;
-    );
-
-CONVERT_DECL(uint64_t, int16_t, short, 
-             if(val >= 0)
-                 return val;
-    );
-
-CONVERT_DECL(uint64_t, uint16_t, ushort, 
-             return val;
-    );
-
-CONVERT_DECL(uint64_t, int32_t, int,
-             if(val >= 0)
-                 return val;
-    );
-
-CONVERT_DECL(uint64_t, uint32_t, uint,
-             return val;
-    );
-
-CONVERT_DECL(uint64_t, int64_t, long,
-             if(val >= 0)
-                 return val;
-    );
-
-CONVERT_DECL(uint64_t, uint64_t, ulong,
-             return val;
-    );
-
-CONVERT_DECL(uint64_t, float, float,
-             if(val >= 0.0 && val <= (float)ULONG_MAX && !(fabs(val - (uint64_t)val) > 0.0))
-                 return val;
-    );
-
-CONVERT_DECL(uint64_t, double, double,
-             if(val >= 0.0 && val <= (double)ULONG_MAX && !(fabs(val - (uint64_t)val) > 0.0))
-                 return val;
-    );
-
-//------------------------------------------------------------
-// Conversions to double
-//------------------------------------------------------------
-
-CONVERT_DECL(double, bool, bool,
-             return val;
-    );
-
-CONVERT_DECL(double, uint8_t, uchar, 
-             return val;
-    );
-
-CONVERT_DECL(double, int8_t, char, 
-             return val;
-    );
-
-CONVERT_DECL(double, int16_t, short, 
-             return val;
-    );
-
-CONVERT_DECL(double, uint16_t, ushort, 
-             return val;
-    );
-
-CONVERT_DECL(double, int32_t, int,
-             return val;
-    );
-
-CONVERT_DECL(double, uint32_t, uint,
-             return val;
-    );
-
-CONVERT_DECL(double, int64_t, long,
-             return val;
-    );
-
-CONVERT_DECL(double, uint64_t, ulong,
-             return val;
-    );
-
-CONVERT_DECL(double, float, float,
-             return val;
-    );
-
-CONVERT_DECL(double, double, double,
-                 return val;
-    );
-
-uint8_t CmpUtil::objectToUint8(cmp_object_t* obj)
-{
-    if(CmpUtil::uint8ConvMap_.find(obj->type) != CmpUtil::uint8ConvMap_.end())
-        return CmpUtil::uint8ConvMap_[obj->type](obj);
-    else 
-        ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to a uint8_t type");
-    return 0;
-}
-
-int64_t CmpUtil::objectToInt64(cmp_object_t* obj)
-{
-    if(CmpUtil::int64ConvMap_.find(obj->type) != CmpUtil::int64ConvMap_.end())
-        return CmpUtil::int64ConvMap_[obj->type](obj);
-    else 
-        ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to an int64_t type");
-    return 0;
-}
-
-uint64_t CmpUtil::objectToUint64(cmp_object_t* obj)
-{
-    if(CmpUtil::uint64ConvMap_.find(obj->type) != CmpUtil::uint64ConvMap_.end())
-        return CmpUtil::uint64ConvMap_[obj->type](obj);
-    else 
-        ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to a uint64_t type");
-    return 0;
-}
-
-double CmpUtil::objectToDouble(cmp_object_t* obj)
-{
-    if(CmpUtil::doubleConvMap_.find(obj->type) != CmpUtil::doubleConvMap_.end())
-        return CmpUtil::doubleConvMap_[obj->type](obj);
-    else 
-        ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to a double type");
-    return 0.0;
-}
-
-std::map<uint8_t, CONV_UINT8_FN(*)>  CmpUtil::constructUint8Map()
-{
-    std::map<uint8_t, CONV_UINT8_FN(*)> convMap;
-    CONSTRUCT_CONV_MAP(uint8_t);
-    return convMap;
-}
-
-std::map<uint8_t, CONV_INT64_FN(*)>  CmpUtil::constructInt64Map()
-{
-    std::map<uint8_t, CONV_INT64_FN(*)> convMap;
-    CONSTRUCT_CONV_MAP(int64_t);
-    return convMap;
-}
-
-std::map<uint8_t, CONV_UINT64_FN(*)>  CmpUtil::constructUint64Map()
-{
-    std::map<uint8_t, CONV_UINT64_FN(*)> convMap;
-    CONSTRUCT_CONV_MAP(uint64_t);
-    return convMap;
-}
-
-std::map<uint8_t, CONV_DOUBLE_FN(*)>  CmpUtil::constructDoubleMap()
-{
-    std::map<uint8_t, CONV_DOUBLE_FN(*)> convMap;
-    CONSTRUCT_CONV_MAP(double);
-    return convMap;
-}
+// CONVERT_DECL(int64_t, double, double,
+//              if(val <= (double)LLONG_MAX && val >= (double)LLONG_MIN && !(fabs(val - (int64_t)val) > 0.0))
+//                  return val;
+//     );
 
 
+// //------------------------------------------------------------
+// // Conversions to uint64_t
+// //------------------------------------------------------------
+
+// CONVERT_DECL(uint64_t, bool, bool,
+//              return val;
+//     );
+
+// CONVERT_DECL(uint64_t, uint8_t, uchar,
+//              return val;
+//     );
+
+// CONVERT_DECL(uint64_t, int8_t, char,
+//              if(val >= 0)
+//                  return val;
+//     );
+
+// CONVERT_DECL(uint64_t, int16_t, short,
+//              if(val >= 0)
+//                  return val;
+//     );
+
+// CONVERT_DECL(uint64_t, uint16_t, ushort,
+//              return val;
+//     );
+
+// CONVERT_DECL(uint64_t, int32_t, int,
+//              if(val >= 0)
+//                  return val;
+//     );
+
+// CONVERT_DECL(uint64_t, uint32_t, uint,
+//              return val;
+//     );
+
+// CONVERT_DECL(uint64_t, int64_t, long,
+//              if(val >= 0)
+//                  return val;
+//     );
+
+// CONVERT_DECL(uint64_t, uint64_t, ulong,
+//              return val;
+//     );
+
+// CONVERT_DECL(uint64_t, float, float,
+//              if(val >= 0.0 && val <= (float)ULONG_MAX && !(fabs(val - (uint64_t)val) > 0.0))
+//                  return val;
+//     );
+
+// CONVERT_DECL(uint64_t, double, double,
+//              if(val >= 0.0 && val <= (double)ULONG_MAX && !(fabs(val - (uint64_t)val) > 0.0))
+//                  return val;
+//     );
+
+// //------------------------------------------------------------
+// // Conversions to double
+// //------------------------------------------------------------
+
+// CONVERT_DECL(double, bool, bool,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, uint8_t, uchar,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, int8_t, char,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, int16_t, short,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, uint16_t, ushort,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, int32_t, int,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, uint32_t, uint,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, int64_t, long,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, uint64_t, ulong,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, float, float,
+//              return val;
+//     );
+
+// CONVERT_DECL(double, double, double,
+//                  return val;
+//     );
+
+
+// uint8_t CmpUtil::objectToUint8(cmp_object_t* obj)
+// {
+//     if(CmpUtil::uint8ConvMap_.find(obj->type) != CmpUtil::uint8ConvMap_.end())
+//         return CmpUtil::uint8ConvMap_[obj->type](obj);
+//     else
+//         ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to a uint8_t type");
+//     return 0;
+// }
+
+// int64_t CmpUtil::objectToInt64(cmp_object_t* obj)
+// {
+//     if(CmpUtil::int64ConvMap_.find(obj->type) != CmpUtil::int64ConvMap_.end())
+//         return CmpUtil::int64ConvMap_[obj->type](obj);
+//     else
+//         ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to an int64_t type");
+//     return 0;
+// }
+
+// uint64_t CmpUtil::objectToUint64(cmp_object_t* obj)
+// {
+//     if(CmpUtil::uint64ConvMap_.find(obj->type) != CmpUtil::uint64ConvMap_.end())
+//         return CmpUtil::uint64ConvMap_[obj->type](obj);
+//     else
+//         ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to a uint64_t type");
+//     return 0;
+// }
+
+// double CmpUtil::objectToDouble(cmp_object_t* obj)
+// {
+//     if(CmpUtil::doubleConvMap_.find(obj->type) != CmpUtil::doubleConvMap_.end())
+//         return CmpUtil::doubleConvMap_[obj->type](obj);
+//     else
+//         ThrowRuntimeError("Object of type " << typeStrOf(obj) << " can't be converted to a double type");
+//     return 0.0;
+// }
+
+// std::map<uint8_t, CONV_UINT8_FN(*)>  CmpUtil::constructUint8Map()
+// {
+//     std::map<uint8_t, CONV_UINT8_FN(*)> convMap;
+//     CONSTRUCT_CONV_MAP(uint8_t);
+//     return convMap;
+// }
+
+// std::map<uint8_t, CONV_INT64_FN(*)>  CmpUtil::constructInt64Map()
+// {
+//     std::map<uint8_t, CONV_INT64_FN(*)> convMap;
+//     CONSTRUCT_CONV_MAP(int64_t);
+//     return convMap;
+// }
+
+// std::map<uint8_t, CONV_UINT64_FN(*)>  CmpUtil::constructUint64Map()
+// {
+//     std::map<uint8_t, CONV_UINT64_FN(*)> convMap;
+//     CONSTRUCT_CONV_MAP(uint64_t);
+//     return convMap;
+// }
+
+// std::map<uint8_t, CONV_DOUBLE_FN(*)>  CmpUtil::constructDoubleMap()
+// {
+//     std::map<uint8_t, CONV_DOUBLE_FN(*)> convMap;
+//     CONSTRUCT_CONV_MAP(double);
+//     return convMap;
+// }

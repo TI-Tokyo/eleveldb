@@ -14,7 +14,7 @@ DataType::DataType() {}
  */
 DataType::~DataType() {}
 
-ostream& 
+ostream&
 eleveldb::operator<<(ostream& os, DataType::Type type)
 {
   switch (type) {
@@ -30,9 +30,6 @@ eleveldb::operator<<(ostream& os, DataType::Type type)
   case DataType::ARRAY:
       os << "ARRAY";
       break;
-  case DataType::BIN:
-      os << "BIN";
-      break;
   case DataType::BOOL:
       os << "BOOL";
       break;
@@ -42,38 +39,14 @@ eleveldb::operator<<(ostream& os, DataType::Type type)
   case DataType::CHAR:
       os << "CHAR";
       break;
-  case DataType::UCHAR_PTR:
-      os << "UCHAR_PTR";
-      break;
   case DataType::EXT:
       os << "EXT";
       break;
-  case DataType::INT8:
-      os << "INT8";
+  case DataType::INT:
+      os << "INT";
       break;
-  case DataType::UINT8:
-      os << "UINT8";
-      break;
-  case DataType::INT16:
-      os << "INT16";
-      break;
-  case DataType::UINT16:
-      os << "UINT16";
-      break;
-  case DataType::INT32:
-      os << "INT32";
-      break;
-  case DataType::UINT32:
-      os << "UINT32";
-      break;
-  case DataType::INT64:
-      os << "INT64";
-      break;
-  case DataType::UINT64:
-      os << "UINT64";
-      break;
-  case DataType::FLOAT:
-      os << "FLOAT";
+  case DataType::UINT:
+      os << "UINT";
       break;
   case DataType::DOUBLE:
       os << "DOUBLE";

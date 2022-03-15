@@ -36,95 +36,84 @@
 #include "util/mutexlock.h"
 #include "util/thread_tasks.h"
 
-#ifndef __WORK_RESULT_HPP
-    #include "work_result.hpp"
-#endif
-
-#ifndef ATOMS_H
-    #include "atoms.h"
-#endif
-
-#ifndef INCL_REFOBJECTS_H
-    #include "refobjects.h"
-#endif
+#include "work_result.hpp"
+#include "atoms.h"
+#include "refobjects.h"
 
 namespace eleveldb {
 
 /* Type returned from a work task: */
-typedef basho::async_nif::work_result   work_result;
-
+typedef basho::async_nif::work_result work_result;
 
 
 /**
  * Virtual base class for async NIF work items:
  */
-class WorkTask : public leveldb::ThreadTask
-{
- protected:
-    ReferencePtr<DbObject> m_DbPtr;             //!< access to database, and holds reference
+class WorkTask : public leveldb::ThreadTask {
+protected:
+        ReferencePtr<DbObject> m_DbPtr;   //!< access to database, and holds reference
 
-    ErlNifEnv      *local_env_;
-    ERL_NIF_TERM   caller_ref_term;
-    ERL_NIF_TERM   caller_pid_term;
-    bool           terms_set;
+        ErlNifEnv*     local_env_;
+        ERL_NIF_TERM   caller_ref_term;
+        ERL_NIF_TERM   caller_pid_term;
+        bool           terms_set;
 
-    ErlNifPid local_pid;   // maintain for task lifetime (JFW)
+        ErlNifPid local_pid;   // maintain for task lifetime (JFW)
 
- public:
-    WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref);
+public:
+        WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref);
+        WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObjectPtr_t& DbPtr);
 
-    WorkTask(ErlNifEnv *caller_env, ERL_NIF_TERM& caller_ref, DbObjectPtr_t & DbPtr);
+        virtual ~WorkTask();
 
-    virtual ~WorkTask();
+        // this is the method called from the thread pool's worker thread; it
+        // calls DoWork(), implemented in the subclass, and returns the result
+        // of the work to the caller
+        virtual void operator()();
 
-    // this is the method called from the thread pool's worker thread; it
-    // calls DoWork(), implemented in the subclass, and returns the result
-    // of the work to the caller
-    virtual void operator()();
+        virtual ErlNifEnv *local_env()         { return local_env_; }
 
-    virtual ErlNifEnv *local_env()         { return local_env_; }
+        // call local_env() since the virtual creates the data in MoveTask
+        const ERL_NIF_TERM& caller_ref()       { local_env(); return caller_ref_term; }
+        const ERL_NIF_TERM& pid()              { local_env(); return caller_pid_term; }
 
-    // call local_env() since the virtual creates the data in MoveTask
-    const ERL_NIF_TERM& caller_ref()       { local_env(); return caller_ref_term; }
-    const ERL_NIF_TERM& pid()              { local_env(); return caller_pid_term; }
+protected:
+        // this is the method that does the real work for this task
+        virtual work_result DoWork() = 0;
 
- protected:
-    // this is the method that does the real work for this task
-    virtual work_result DoWork() = 0;
-
- private:
-    WorkTask();
-    WorkTask(const WorkTask &);
-    WorkTask & operator=(const WorkTask &);
-
-};  // class WorkTask
+private:
+        WorkTask();
+        WorkTask(const WorkTask &);
+        WorkTask & operator=(const WorkTask &);
+};
 
 
 /**
  * Background object for async open of a leveldb instance
  */
 
-class OpenTask : public WorkTask
-{
+class OpenTask : public WorkTask {
 protected:
-    std::string         db_name;
-    leveldb::Options   *open_options;  // associated with db handle, we don't free it
+        std::string db_name;
+        leveldb::Options* open_options;  // associated with db handle, we don't free it
 
 public:
-    OpenTask(ErlNifEnv* caller_env, ERL_NIF_TERM& _caller_ref,
-             const std::string& db_name_, leveldb::Options *open_options_);
+        OpenTask(ErlNifEnv* caller_env, ERL_NIF_TERM& _caller_ref,
+                 const std::string& db_name_, leveldb::Options *open_options_)
+                : WorkTask(caller_env, _caller_ref),
+                  db_name(db_name_), open_options(open_options_)
+                {}
 
-    virtual ~OpenTask() {};
+        virtual ~OpenTask() {}
 
 protected:
-    virtual work_result DoWork();
+        virtual work_result DoWork();
 
 private:
-    OpenTask();
-    OpenTask(const OpenTask &);
-    OpenTask & operator=(const OpenTask &);
-
-};  // class OpenTask
+        OpenTask();
+        OpenTask(const OpenTask &);
+        OpenTask & operator=(const OpenTask &);
+};
 
 
 
@@ -132,59 +121,68 @@ private:
  * Background object for async write
  */
 
-class WriteTask : public WorkTask
-{
+class WriteTask : public WorkTask {
 protected:
-    leveldb::WriteBatch*    batch;
-    leveldb::WriteOptions*  options;
+        leveldb::WriteBatch*    batch;
+        leveldb::WriteOptions*  options;
 
 public:
-    WriteTask(ErlNifEnv* _owner_env, ERL_NIF_TERM _caller_ref,
-                DbObjectPtr_t & _db_handle,
-                leveldb::WriteBatch* _batch,
-              leveldb::WriteOptions* _options);
+        WriteTask(ErlNifEnv* _owner_env, ERL_NIF_TERM _caller_ref,
+                  DbObjectPtr_t & _db_handle,
+                  leveldb::WriteBatch* _batch,
+                  leveldb::WriteOptions* _options)
+                : WorkTask(_owner_env, _caller_ref, _db_handle),
+                  batch(_batch),
+                  options(_options)
+                {}
 
-    virtual ~WriteTask();
+        virtual ~WriteTask()
+                {
+                        delete batch;
+                        delete options;
+                }
 
 protected:
-    virtual work_result DoWork();
+        virtual work_result DoWork()
+                {
+                        leveldb::Status status = m_DbPtr->m_Db->Write(*options, batch);
+                        return (status.ok()
+                                ? work_result(ATOM_OK)
+                                : work_result(local_env(), ATOM_ERROR_DB_WRITE, status));
+                }
 
 private:
-    WriteTask();
-    WriteTask(const WriteTask &);
-    WriteTask & operator=(const WriteTask &);
-
-};  // class WriteTask
+        WriteTask();
+        WriteTask(const WriteTask &);
+        WriteTask & operator=(const WriteTask &);
+};
 
 
 /**
  * Alternate object for retrieving data out of leveldb.
  *  Reduces one memcpy operation.
  */
-class BinaryValue : public leveldb::Value
-{
+class BinaryValue : public leveldb::Value {
 private:
-    ErlNifEnv* m_env;
-    ERL_NIF_TERM& m_value_bin;
+        ErlNifEnv* m_env;
+        ERL_NIF_TERM& m_value_bin;
 
-    BinaryValue(const BinaryValue&);
-    void operator=(const BinaryValue&);
+        BinaryValue(const BinaryValue&);
+        void operator=(const BinaryValue&);
 
 public:
+        BinaryValue(ErlNifEnv* env, ERL_NIF_TERM& value_bin)
+                : m_env(env), m_value_bin(value_bin)
+                {}
 
-    BinaryValue(ErlNifEnv* env, ERL_NIF_TERM& value_bin)
-    : m_env(env), m_value_bin(value_bin)
-    {};
+        virtual ~BinaryValue() {}
 
-    virtual ~BinaryValue() {};
-
-    BinaryValue & assign(const char* data, size_t size)
-    {
-        unsigned char* v = enif_make_new_binary(m_env, size, &m_value_bin);
-        memcpy(v, data, size);
-        return *this;
-    };
-
+        BinaryValue& assign(const char* data, size_t size)
+                {
+                        unsigned char* v = enif_make_new_binary(m_env, size, &m_value_bin);
+                        memcpy(v, data, size);
+                        return *this;
+                }
 };
 
 
@@ -193,24 +191,29 @@ public:
  *  using new BinaryValue object
  */
 
-class GetTask : public WorkTask
-{
+class GetTask : public WorkTask {
 protected:
-    std::string                        m_Key;
-    leveldb::ReadOptions              options;
+        std::string m_Key;
+        leveldb::ReadOptions options;
 
 public:
-    GetTask(ErlNifEnv *_caller_env,
-            ERL_NIF_TERM _caller_ref,
-            DbObjectPtr_t & _db_handle,
-            ERL_NIF_TERM _key_term,
-            leveldb::ReadOptions &_options);
+        GetTask(ErlNifEnv *_caller_env,
+                ERL_NIF_TERM _caller_ref,
+                DbObjectPtr_t & _db_handle,
+                ERL_NIF_TERM _key_term,
+                leveldb::ReadOptions &_options)
+                : WorkTask(_caller_env, _caller_ref, _db_handle),
+                  options(_options)
+                {
+                        ErlNifBinary key;
 
-    virtual ~GetTask();
+                        enif_inspect_binary(_caller_env, _key_term, &key);
+                        m_Key.assign((const char*)key.data, key.size);
+                }
 
-    virtual work_result DoWork();
-
-};  // class GetTask
+        virtual ~GetTask() {}
+        work_result DoWork();
+};
 
 
 
@@ -218,10 +221,8 @@ public:
  * Background object to open/start an iteration
  */
 
-class IterTask : public WorkTask
-{
+class IterTask : public WorkTask {
 protected:
-
     const bool keys_only;
     leveldb::ReadOptions options;
 
@@ -230,272 +231,240 @@ public:
              ERL_NIF_TERM _caller_ref,
              DbObjectPtr_t & _db_handle,
              const bool _keys_only,
-             leveldb::ReadOptions &_options);
+             leveldb::ReadOptions &_options)
+            : WorkTask(_caller_env, _caller_ref, _db_handle),
+              keys_only(_keys_only), options(_options)
+                {}
 
-    virtual ~IterTask();
+        virtual ~IterTask() {}
 
-    virtual work_result DoWork();
+        work_result DoWork();
+};
 
-};  // class IterTask
 
-
-class MoveTask : public WorkTask
-{
+class MoveTask : public WorkTask {
 public:
-    typedef enum { FIRST, LAST, NEXT, PREV, SEEK, PREFETCH, PREFETCH_STOP } action_t;
+        typedef enum { FIRST, LAST, NEXT, PREV, SEEK, PREFETCH, PREFETCH_STOP } action_t;
 
 protected:
-    ItrObjectPtr_t m_Itr;
+        ItrObjectPtr_t m_Itr;
 
 public:
-    action_t                                       action;
-    std::string                                 seek_target;
+        action_t action;
+        std::string seek_target;
 
 public:
+        // No seek target:
+        MoveTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                 ItrObjectPtr_t& Iter, action_t& _action);
+        // With seek target:
+        MoveTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
+                 ItrObjectPtr_t& Iter, action_t& _action,
+                 std::string& _seek_target);
 
-    // No seek target:
-    MoveTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
-             ItrObjectPtr_t & Iter, action_t& _action);
+        virtual ~MoveTask() {}
 
-    // With seek target:
-    MoveTask(ErlNifEnv *_caller_env, ERL_NIF_TERM _caller_ref,
-             ItrObjectPtr_t & Iter, action_t& _action,
-             std::string& _seek_target);
+        ErlNifEnv *local_env();
 
-    virtual ~MoveTask();
-
-    virtual ErlNifEnv *local_env();
-
-    virtual void recycle();
+        void recycle();
 
 protected:
-    virtual work_result DoWork();
-
-};  // class MoveTask
+        work_result DoWork();
+};
 
 
 /**
  * Background object for async database close
  */
 
-class CloseTask : public WorkTask
-{
-protected:
-
+class CloseTask : public WorkTask {
 public:
+        CloseTask(ErlNifEnv* _owner_env, ERL_NIF_TERM _caller_ref,
+                  DbObjectPtr_t& _db_handle)
+                : WorkTask(_owner_env, _caller_ref, _db_handle)
+                {}
 
-    CloseTask(ErlNifEnv* _owner_env, ERL_NIF_TERM _caller_ref,
-              DbObjectPtr_t & _db_handle);
+        virtual ~CloseTask() {}
 
-    virtual ~CloseTask();
-
-    virtual work_result DoWork();
-
-};  // class CloseTask
+        work_result DoWork();
+};
 
 
 /**
  * Background object for async iterator close
  */
 
-class ItrCloseTask : public WorkTask
-{
+class ItrCloseTask : public WorkTask {
 protected:
-    ReferencePtr<ItrObject> m_ItrPtr;
+        ReferencePtr<ItrObject> m_ItrPtr;
 
 public:
-    ItrCloseTask(ErlNifEnv* _owner_env, ERL_NIF_TERM _caller_ref,
-              ItrObjectPtr_t & _itr_handle);
+        ItrCloseTask(ErlNifEnv* _owner_env, ERL_NIF_TERM _caller_ref,
+                     ItrObjectPtr_t& _itr_handle)
+                : WorkTask(_owner_env, _caller_ref),
+                  m_ItrPtr(_itr_handle)
+                {}
 
-    virtual ~ItrCloseTask();
+        virtual ~ItrCloseTask() {}
 
-    virtual work_result DoWork();
-
-};  // class ItrCloseTask
+        work_result DoWork();
+};
 
 
 /**
  * Background object for async open of a leveldb instance
  */
 
-class DestroyTask : public WorkTask
-{
+class DestroyTask : public WorkTask {
 protected:
-    std::string         db_name;
-    leveldb::Options   *open_options;  // associated with db handle, we don't free it
+        std::string db_name;
+        leveldb::Options* open_options;  // associated with db handle, we don't free it
 
 public:
-    DestroyTask(ErlNifEnv* caller_env, ERL_NIF_TERM& _caller_ref,
-             const std::string& db_name_, leveldb::Options *open_options_);
+        DestroyTask(ErlNifEnv* caller_env, ERL_NIF_TERM& _caller_ref,
+                    const std::string& db_name_, leveldb::Options *open_options_)
+                : WorkTask(caller_env, _caller_ref),
+                  db_name(db_name_), open_options(open_options_)
+                {}
 
-    virtual ~DestroyTask() {};
+        virtual ~DestroyTask() {}
 
 protected:
-    virtual work_result DoWork();
+        work_result DoWork();
 
 private:
-    DestroyTask();
-    DestroyTask(const DestroyTask &);
-    DestroyTask & operator=(const DestroyTask &);
+        DestroyTask();
+        DestroyTask(const DestroyTask&);
+        DestroyTask & operator=(const DestroyTask&);
 
-};  // class DestroyTask
+};
 
 //=======================================================================
 // An object for storing range_scan options
 //=======================================================================
 
 struct RangeScanOptions {
+        // Byte-level controls for batching/ack
+        size_t max_unacked_bytes = 10 * 1024 * 1024;
+        size_t low_bytes         = 2 * 1024 * 1024;
+        size_t max_batch_bytes   = 1 * 1024 * 1024;
 
-    // Byte-level controls for batching/ack
+        // Max number of items to return. Zero means unlimited.
+        size_t limit = 0;
 
-    size_t max_unacked_bytes;
-    size_t low_bytes;
-    size_t max_batch_bytes;
+        // Include the start key in streaming iteration?
+        bool start_inclusive = true;
 
-    // Max number of items to return. Zero means unlimited.
+        // Include the end key in streaming iteration?
+        bool end_inclusive = false;
 
-    size_t limit;
+        // Read options
+        bool fill_cache = false;
+        bool verify_checksums = true;
 
-    // Include the start key in streaming iteration?
+        // Filter options
+        ERL_NIF_TERM rangeFilterSpec_;
+        ErlNifEnv* env_ = nullptr;
+        bool useRangeFilter_ = false;
+};
 
-    bool start_inclusive;
-
-    // Include the end key in streaming iteration?
-
-    bool end_inclusive;
-
-    // Read options
-
-    bool fill_cache;
-    bool verify_checksums;
-
-    // Filter options
-
-    ERL_NIF_TERM rangeFilterSpec_;
-    ErlNifEnv* env_;
-    bool useRangeFilter_;
-
-    RangeScanOptions();
-    ~RangeScanOptions();
-
-    //------------------------------------------------------------
-    // Sanity-check filter options
-    //------------------------------------------------------------
-
-    void checkOptions();
-
-};  // struct RangeScanOptions
-
-class RangeScanTask : public WorkTask
-{
+class RangeScanTask : public WorkTask {
 public:
+        // Used to coordinate production and consumption of batches of data.
+        // Producers acknowledge each batch received. Consumers block when the
+        // unacked limit has been reached and need to be woken up by the consumer.
+        // When consumers die, the ref count is decremented and that will signal
+        // the producer to go away too.
 
-    // Used to coordinate production and consumption of batches of data.
-    // Producers acknowledge each batch received. Consumers block when the
-    // unacked limit has been reached and need to be woken up by the consumer.
-    // When consumers die, the ref count is decremented and that will signal
-    // the producer to go away too.
+        class SyncObject : public RefObject {
+        public:
+                explicit SyncObject(const RangeScanOptions & opts);
+                ~SyncObject();
 
-    class SyncObject : public RefObject {
-    public:
-        explicit SyncObject(const RangeScanOptions & opts);
-        ~SyncObject();
+                // True if only one side (producer or consumer) alive.
+                inline bool SingleOwned()
+                        {
+                                return( 1 == GetRefCount());
+                        }
 
-        // True if only one side (producer or consumer) alive.
+                // Adds number of bytes sent to count.
+                // Will block if count exceeds max waiting for the other
+                // side to ack some and take it under the limit or for the other
+                // side to shut down.
+                void AddBytes(uint32_t n);
 
-        inline bool SingleOwned() { return( 1 == GetRefCount()); }
+                void AckBytes(uint32_t n);
+                bool AckBytesRet(uint32_t n);
 
-        // Adds number of bytes sent to count.
-        // Will block if count exceeds max waiting for the other
-        // side to ack some and take it under the limit or for the other
-        // side to shut down.
+                // Should be called when the Erlang handle is garbage collected
+                // so no process is there to consume the output.
+                void MarkConsumerDead();
 
-        void AddBytes(uint32_t n);
+                bool IsConsumerDead() const;
 
-        void AckBytes(uint32_t n);
-        bool AckBytesRet(uint32_t n);
+        private:
+                const uint32_t max_bytes_;
+                const uint32_t low_bytes_;
+                volatile uint32_t num_bytes_;
+                volatile bool producer_sleeping_;
 
-        // Should be called when the Erlang handle is garbage collected
-        // so no process is there to consume the output.
+                // Set if producer filled up but consumer acked before
+                // producer went to sleep. Producer should abort going to
+                // sleep upon seeing this set.
 
-        void MarkConsumerDead();
+                volatile bool pending_signal_;
+                volatile bool consumer_dead_;
+                volatile bool crossed_under_max_;
 
-        bool IsConsumerDead() const;
+                ErlNifMutex* mutex_;
+                ErlNifCond*  cond_;
+        };
 
-    private:
-        const uint32_t max_bytes_;
-        const uint32_t low_bytes_;
-        volatile uint32_t num_bytes_;
-        volatile bool producer_sleeping_;
+        struct SyncHandle {
+                SyncObject* sync_obj_;
+        };
 
-        // Set if producer filled up but consumer acked before
-        // producer went to sleep. Producer should abort going to
-        // sleep upon seeing this set.
+        RangeScanTask(ErlNifEnv* caller_env,
+                      ERL_NIF_TERM caller_ref,
+                      DbObjectPtr_t & _db_handle,
+                      const std::string& start_key,
+                      const std::string* end_key,
+                      RangeScanOptions&  options,
+                      SyncObject* sync_obj);
 
-        volatile bool pending_signal_;
-        volatile bool consumer_dead_;
-        volatile bool crossed_under_max_;
+        virtual ~RangeScanTask();
 
-        ErlNifMutex* mutex_;
-        ErlNifCond*  cond_;
-    };
+        static void CreateSyncHandleType(ErlNifEnv* env);
+        static SyncHandle* CreateSyncHandle(const RangeScanOptions & options);
+        static SyncHandle* RetrieveSyncHandle(ErlNifEnv* env, ERL_NIF_TERM term);
+        static void SyncHandleResourceCleanup(ErlNifEnv* env, void* arg);
 
-    struct SyncHandle {
-        SyncObject* sync_obj_;
-    };
+        void sendMsg(ErlNifEnv* msg_env, ERL_NIF_TERM atom, ErlNifPid pid);
+        void sendMsg(ErlNifEnv* msg_env, ERL_NIF_TERM atom, ErlNifPid pid, std::string msg);
 
-    RangeScanTask(ErlNifEnv* caller_env,
-                  ERL_NIF_TERM caller_ref,
-                  DbObjectPtr_t & _db_handle,
-                  const std::string& start_key,
-                  const std::string* end_key,
-                  RangeScanOptions&  options,
-                  SyncObject* sync_obj);
-
-    virtual ~RangeScanTask();
-
-    static void CreateSyncHandleType(ErlNifEnv* env);
-    static SyncHandle* CreateSyncHandle(const RangeScanOptions & options);
-    static SyncHandle* RetrieveSyncHandle(ErlNifEnv* env, ERL_NIF_TERM term);
-    static void SyncHandleResourceCleanup(ErlNifEnv* env, void* arg);
-
-    void sendMsg(ErlNifEnv* msg_env, ERL_NIF_TERM atom, ErlNifPid pid);
-    void sendMsg(ErlNifEnv* msg_env, ERL_NIF_TERM atom, ErlNifPid pid, std::string msg);
-
-    int VarintLength(uint64_t v);
-    char* EncodeVarint64(char* dst, uint64_t v);
-    void send_streaming_batch(ErlNifPid* pid, ErlNifEnv* msg_env, ERL_NIF_TERM ref_term,
-                              ErlNifBinary* bin);
+        int VarintLength(uint64_t v);
+        char* EncodeVarint64(char* dst, uint64_t v);
+        void send_streaming_batch(ErlNifPid* pid, ErlNifEnv* msg_env, ERL_NIF_TERM ref_term,
+                                  ErlNifBinary* bin);
 
 protected:
+        work_result DoWork();
 
-    virtual work_result DoWork();
+        RangeScanOptions options_;
+        std::string start_key_;
+        std::string end_key_;
+        bool has_end_key_;
+        SyncObject* sync_obj_;
+        ExpressionNode<bool>* range_filter_;
 
-    RangeScanOptions options_;
-    std::string start_key_;
-    std::string end_key_;
-    bool has_end_key_;
-    SyncObject* sync_obj_;
-    ExpressionNode<bool>* range_filter_;
-
-    // RangeScanTask::extractorMap_ contains a map of allocated
-    // extractors for valid encodings.
-
-    ExtractorMap extractorMap_;
-
-    // RangeScanTask::extractor_ is just a temporary pointer that will
-    // point to the right extractor for the current data record
-
-    Extractor* extractor_;
+        ExtractorMsgpack extractor;
 
 private:
 
-    static ErlNifResourceType* sync_handle_resource_;
-
-};  // class RangeScanTask
+        static ErlNifResourceType* sync_handle_resource_;
+};
 
 
 } // namespace eleveldb
-
 
 #endif  // INCL_WORKITEMS_H
