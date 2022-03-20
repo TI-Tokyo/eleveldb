@@ -32,7 +32,7 @@ MAKE=${MAKE:-make}
 
 get_dep_leveldb () {
     if [ ! -d leveldb ]; then
-        git clone --depth=1 --shallow-submodules --branch=$LEVELDB_VSN git://github.com/basho/leveldb
+        git clone --depth=1 --shallow-submodules --branch=$LEVELDB_VSN https://github.com/basho/leveldb
         (cd leveldb && git submodule update --init)
     else
         (cd leveldb && dl=$(git diff $LEVELDB_VSN |wc -l) && [ $dl != 0 ] && >&2 echo "\033[0;31m WARN - local leveldb is out of sync with remote $LEVELDB_VSN\033[0m") || :
