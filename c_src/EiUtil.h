@@ -29,7 +29,7 @@
 
 #define FN_DECL(retType, name) \
         retType name();                         \
-        static retType name(char* buf, int* index);
+        static retType name(const char* buf, int* index);
 
 namespace eleveldb {
 
@@ -108,7 +108,7 @@ namespace eleveldb {
 
         FN_DECL(bool, isBig);
         FN_DECL(bool, canBeUint64);
-        static bool isBig(char* buf, int* index, unsigned& size, bool& isSigned);
+        static bool isBig(const char* buf, int* index, unsigned& size, bool& isSigned);
 
         FN_DECL(bool, isFun);
 
@@ -130,7 +130,7 @@ namespace eleveldb {
         FN_DECL(DataType::Type, typeOf);
 
         static std::string typeStrOf(int type);
-        static DataType::Type typeOf(int type, char* buf, int* index);
+        static DataType::Type typeOf(int type, const char* buf, int* index);
 
         static unsigned char* getDataPtr(char* buf, int* index, size_t& size,
                                          bool includeMarker);
@@ -163,7 +163,7 @@ namespace eleveldb {
         FN_DECL(void, skipList);
         FN_DECL(void, skipLastReadObject);
 
-        static void skipNext(char* buf, int* index, unsigned int& nHeaderBytes, unsigned int& nDataBytes);
+        static void skipNext(const char* buf, int* index, unsigned int& nHeaderBytes, unsigned int& nDataBytes);
 
         std::map<std::string, DataType::Type> parseMap();
         static std::map<std::string, DataType::Type> parseMap(char* buf, int* index);

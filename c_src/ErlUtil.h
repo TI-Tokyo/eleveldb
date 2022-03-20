@@ -13,62 +13,72 @@
  * Original author: eleitch@basho.com
  */
 #include "erl_nif.h"
-#include "workitems.h"
-
-#include<string>
+#include "DataType.h"
+#include "exceptionutils.h"
+#include <string>
+#include <vector>
 
 #define MIN_BUF_SIZE 1024
 
 namespace eleveldb {
 
-    class ErlUtil {
-    public:
+class ErlUtil {
+public:
+        ErlUtil(ErlNifEnv* env = nullptr)
+                {
+                        setEnv(env);
+                        hasTerm_ = 0;
+                }
+        ErlUtil(ErlNifEnv* env, ERL_NIF_TERM term)
+                {
+                        setEnv(env);
+                        setTerm(term);
+                }
+        virtual ~ErlUtil() {}
 
-        // Constructor.
-
-        ErlUtil(ErlNifEnv* env=0);
-        ErlUtil(ErlNifEnv* env, ERL_NIF_TERM term);
-
-        /**
-         * Destructor.
-         */
-        virtual ~ErlUtil();
-
-        void setEnv(ErlNifEnv* env);
-        void setTerm(ERL_NIF_TERM term);
+        void setEnv(ErlNifEnv* env)
+                {
+                        env_ = env;
+                }
+        void setTerm(ERL_NIF_TERM term)
+                {
+                        term_ = term;
+                        hasTerm_ = true;
+                }
 
         bool isAtom();
         bool isAtom(ERL_NIF_TERM term);
-        static bool isAtom(ErlNifEnv* env, ERL_NIF_TERM term);
+        static bool isAtom(ErlNifEnv*, ERL_NIF_TERM term);
 
         bool isBinary();
         bool isBinary(ERL_NIF_TERM term);
-        static bool isBinary(ErlNifEnv* env, ERL_NIF_TERM term);
+        static bool isBinary(ErlNifEnv*, ERL_NIF_TERM term);
 
         bool isList();
         bool isList(ERL_NIF_TERM term);
-        static bool isList(ErlNifEnv* env, ERL_NIF_TERM term);
+        static bool isList(ErlNifEnv*, ERL_NIF_TERM term);
 
         bool isTuple();
         bool isTuple(ERL_NIF_TERM term);
-        static bool isTuple(ErlNifEnv* env, ERL_NIF_TERM term);
+        static bool isTuple(ErlNifEnv*, ERL_NIF_TERM term);
 
         bool isNumber();
         bool isNumber(ERL_NIF_TERM term);
-        static bool isNumber(ErlNifEnv* env, ERL_NIF_TERM term);
+        static bool isNumber(ErlNifEnv*, ERL_NIF_TERM term);
 
         // Return true if term is a string.  Returns true if term is a
         // valid atom or erlang string (ie, encoded as a list)
 
         bool isString();
         bool isString(ERL_NIF_TERM term);
-        static bool isString(ErlNifEnv* env, ERL_NIF_TERM term);
+        static bool isString(ErlNifEnv*, ERL_NIF_TERM term);
+
+        static DataType::Type typeOf(ErlNifEnv*, ERL_NIF_TERM term);
 
         // Return true is term can be represented as a string.
         // Returns true if term is a valid atom, erlang string, or
         // erlang binary (no checking is done if the binary is valid
         // UTF)
-
         bool isRepresentableAsString();
         bool isRepresentableAsString(ERL_NIF_TERM term);
         static bool isRepresentableAsString(ErlNifEnv* env, ERL_NIF_TERM term);
@@ -150,10 +160,9 @@ namespace eleveldb {
         static std::string formatAsString(char* buf, size_t size);
 
         static std::string formatTuple( ErlNifEnv* env, ERL_NIF_TERM term);
-        static std::string formatTupleVec(ErlNifEnv* env, std::vector<ERL_NIF_TERM>& tuple);
+        static std::string formatTupleVec(ErlNifEnv* env, const std::vector<ERL_NIF_TERM>& tuple);
 
-    private:
-
+private:
         void checkEnv();
         void checkTerm();
 
@@ -161,11 +170,9 @@ namespace eleveldb {
 
         bool hasTerm_;
         ERL_NIF_TERM term_;
+};
 
-    }; // End class ErlUtil
-
-} // End namespace eleveldb
-
+}
 
 
-#endif // End #ifndef ELEVELDB_ERLUTIL_H
+#endif

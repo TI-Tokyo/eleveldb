@@ -155,6 +155,7 @@ ERL_NIF_TERM ATOM_MAX_UNACKED_BYTES;
 ERL_NIF_TERM ATOM_MAX_BATCH_BYTES;
 ERL_NIF_TERM ATOM_NEEDS_REACK;
 ERL_NIF_TERM ATOM_RANGE_FILTER;
+ERL_NIF_TERM ATOM_FIELD_TYPES;
 ERL_NIF_TERM ATOM_STREAMING_BATCH;
 ERL_NIF_TERM ATOM_STREAMING_END;
 ERL_NIF_TERM ATOM_STREAMING_ERROR;
@@ -605,8 +606,7 @@ ERL_NIF_TERM parse_streaming_option(ErlNifEnv* env, ERL_NIF_TERM item,
 {
     int arity;
     const ERL_NIF_TERM* option;
-    if (enif_get_tuple(env, item, &arity, &option) && 2 == arity)
-    {
+    if (enif_get_tuple(env, item, &arity, &option) && 2 == arity) {
         if (option[0] == eleveldb::ATOM_START_INCLUSIVE)
             opts.start_inclusive = (option[1] == eleveldb::ATOM_TRUE);
         else if (option[0] == eleveldb::ATOM_END_INCLUSIVE)
@@ -646,6 +646,8 @@ ERL_NIF_TERM parse_streaming_option(ErlNifEnv* env, ERL_NIF_TERM item,
             opts.useRangeFilter_  = true;
             opts.env_             = env;
             opts.rangeFilterSpec_ = option[1];
+        } else if (option[0] == eleveldb::ATOM_FIELD_TYPES) {
+                opts.fieldTypes_ = option[1];
         }
     }
 
@@ -1651,6 +1653,7 @@ try
     ATOM(eleveldb::ATOM_MAX_BATCH_BYTES, "max_batch_bytes");
     ATOM(eleveldb::ATOM_NEEDS_REACK, "needs_reack");
     ATOM(eleveldb::ATOM_RANGE_FILTER, "range_filter");
+    ATOM(eleveldb::ATOM_FIELD_TYPES, "field_types");
     ATOM(eleveldb::ATOM_STREAMING_BATCH, "streaming_batch");
     ATOM(eleveldb::ATOM_STREAMING_END,   "streaming_end");
     ATOM(eleveldb::ATOM_STREAMING_ERROR, "streaming_error");

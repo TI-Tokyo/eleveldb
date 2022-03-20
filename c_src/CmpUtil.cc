@@ -33,106 +33,63 @@ using namespace eleveldb;
 
 
 /**.......................................................................
- * Parse a map encoded as a msgpack object into component keys and
- * datatypes
- */
-std::map<std::string, DataType::Type>
-CmpUtil::parseMap(const char* data, size_t size)
-{
-    std::map<std::string, DataType::Type> keyValMap;
-
-    static auto M = std::map<typeof(msgpack::type::BOOLEAN),
-                             typeof(DataType::Type)> {
-            {msgpack::type::BOOLEAN,          DataType::BOOL},
-            {msgpack::type::NEGATIVE_INTEGER, DataType::INT},
-            {msgpack::type::POSITIVE_INTEGER, DataType::INT},
-            {msgpack::type::FLOAT32,          DataType::DOUBLE},
-            {msgpack::type::FLOAT64,          DataType::DOUBLE},
-            {msgpack::type::STR,              DataType::STRING},
-    };
-
-    auto oh = msgpack::unpack(data, size);
-    auto obj = oh.get();
-    std::vector<msgpack::object> oa;
-    obj.convert(oa);
-
-    size_t ki = 1;
-    for (auto& oi : oa) {
-            const std::string key = std::to_string(ki);
-            keyValMap[key] = M[oi.type];
-            ++ki;
-    }
-
-    return keyValMap;
-}
-
-/**.......................................................................
  * Return the type of this object
  */
 DataType::Type CmpUtil::typeOf(cmp_object_t* obj)
 {
-    switch (obj->type) {
-    case CMP_TYPE_FIXMAP:
-    case CMP_TYPE_MAP16:
-    case CMP_TYPE_MAP32:
-        return DataType::MAP;
-        break;
-    case CMP_TYPE_FIXARRAY:
-    case CMP_TYPE_ARRAY16:
-    case CMP_TYPE_ARRAY32:
-        return DataType::ARRAY;
-        break;
-    case CMP_TYPE_FIXSTR:
-    case CMP_TYPE_STR8:
-    case CMP_TYPE_STR16:
-    case CMP_TYPE_STR32:
-        return DataType::STRING;
-        break;
-    case CMP_TYPE_NIL:
-        return DataType::NIL;
-        break;
-    case CMP_TYPE_BOOLEAN:
-        return DataType::BOOL;
-        break;
-    case CMP_TYPE_BIN8:
-    case CMP_TYPE_BIN16:
-    case CMP_TYPE_BIN32:
-        return DataType::STRING;
-        break;
-    case CMP_TYPE_FIXEXT1:
-    case CMP_TYPE_FIXEXT2:
-    case CMP_TYPE_FIXEXT4:
-    case CMP_TYPE_FIXEXT8:
-    case CMP_TYPE_FIXEXT16:
-    case CMP_TYPE_EXT8:
-    case CMP_TYPE_EXT16:
-    case CMP_TYPE_EXT32:
-        return DataType::EXT;
-        break;
-    case CMP_TYPE_FLOAT:
-    case CMP_TYPE_DOUBLE:
-        return DataType::DOUBLE;
-        break;
+        switch (obj->type) {
+        case CMP_TYPE_FIXSTR:
+        case CMP_TYPE_STR8:
+        case CMP_TYPE_STR16:
+        case CMP_TYPE_STR32:
+                return DataType::Type::STRING;
+                break;
+        case CMP_TYPE_NIL:
+                return DataType::Type::NIL;
+                break;
+        case CMP_TYPE_BOOLEAN:
+                return DataType::Type::BOOL;
+                break;
+        case CMP_TYPE_BIN8:
+        case CMP_TYPE_BIN16:
+        case CMP_TYPE_BIN32:
+                return DataType::Type::STRING;
+                break;
+        case CMP_TYPE_FLOAT:
+        case CMP_TYPE_DOUBLE:
+                return DataType::Type::DOUBLE;
+                break;
 
-    case CMP_TYPE_POSITIVE_FIXNUM:
-    case CMP_TYPE_UINT8:
-    case CMP_TYPE_UINT16:
-    case CMP_TYPE_UINT32:
-    case CMP_TYPE_UINT64:
-        return DataType::UINT;
-        break;
-    case CMP_TYPE_NEGATIVE_FIXNUM:
-    case CMP_TYPE_SINT8:
-    case CMP_TYPE_SINT16:
-    case CMP_TYPE_SINT32:
-    case CMP_TYPE_SINT64:
-        return DataType::INT;
-        break;
+        case CMP_TYPE_POSITIVE_FIXNUM:
+        case CMP_TYPE_UINT8:
+        case CMP_TYPE_UINT16:
+        case CMP_TYPE_UINT32:
+        case CMP_TYPE_UINT64:
+        case CMP_TYPE_NEGATIVE_FIXNUM:
+        case CMP_TYPE_SINT8:
+        case CMP_TYPE_SINT16:
+        case CMP_TYPE_SINT32:
+        case CMP_TYPE_SINT64:
+                return DataType::Type::INT;
+                break;
 
-    default:
-        return DataType::UNKNOWN;
-        break;
-    }
+        case CMP_TYPE_FIXMAP:
+        case CMP_TYPE_MAP16:
+        case CMP_TYPE_MAP32:
+        case CMP_TYPE_FIXARRAY:
+        case CMP_TYPE_ARRAY16:
+        case CMP_TYPE_ARRAY32:
+        case CMP_TYPE_FIXEXT1:
+        case CMP_TYPE_FIXEXT2:
+        case CMP_TYPE_FIXEXT4:
+        case CMP_TYPE_FIXEXT8:
+        case CMP_TYPE_FIXEXT16:
+        case CMP_TYPE_EXT8:
+        case CMP_TYPE_EXT16:
+        case CMP_TYPE_EXT32:
+        default:
+                return DataType::Type::UNSUPPORTED;
+        }
 }
 
 /**.......................................................................

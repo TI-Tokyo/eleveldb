@@ -9,370 +9,161 @@
 
 #include <msgpack.hpp>
 
+#include <fstream>
+#include <ios>
+
 using namespace eleveldb;
 
 //=======================================================================
 // Methods of Extractor base class
 //=======================================================================
 
-Extractor::Extractor()
+void
+Extractor::parseTypes(ErlNifEnv* env, const ERL_NIF_TERM& options)
 {
-    typesParsed_    = false;
-    nField_         = 0;
-}
+        std::vector<ERL_NIF_TERM> opArgs = ErlUtil::getListCells(env, options);
 
-Extractor::~Extractor() {}
-
-/**.......................................................................
- * Add a field to the map of expression fields.  If a type was
- * specified as ANY with the filter, store the original specified type
- * in the map.  Else store the (possibly converted to a different
- * supported type) inferred type from the data structure.
- *
- * This will be used later to distinguish binaries that were specified
- * as binaries from opaque items that are treated as binaries because
- * we don't know what they are (type 'any').
- */
-void Extractor::add_field(std::string field)
-{
-    if(expr_field_specs_.find(field) != expr_field_specs_.end()) {
-
-        if(expr_field_specs_[field] == DataType::ANY) {
-            expr_fields_[field] = expr_field_specs_[field];
-        } else {
-            expr_fields_[field] = cTypeOf(field);
+        size_t ki = 1;
+        for (auto& ai : opArgs) {
+                const std::string key = std::to_string(ki++);
+                std::string ts_type = ErlUtil::getAtom(env, ai);
+                field_types_[key] = tsAtomToCtype(ts_type);
         }
-
-    } else {
-        expr_fields_[field] = cTypeOf(field);
-    }
-
-    nField_ = expr_fields_.size();
 }
 
 /**.......................................................................
  * Convert from a Time-Series type-specifier to a DataType enum
  */
-DataType::Type Extractor::tsAtomToType(std::string tsAtom, bool throwIfInvalid)
+DataType::Type
+Extractor::tsAtomToType(const std::string& t)
 {
-    DataType::Type type = DataType::UNKNOWN;
-
-    // Used to be 'binary', now it's 'varchar'
-
-    if(tsAtom == "varchar") {
-        type = DataType::STRING;
-
-        // Used to be 'integer', now it's 'sint64'
-
-    } else if(tsAtom == "sint64") {
-        type = DataType::INT;
-
-        // Used to be 'float', now it's 'double'
-
-    } else if(tsAtom == "double") {
-        type = DataType::DOUBLE;
-
-    } else if(tsAtom == "boolean") {
-        type = DataType::BOOL;
-    } else if(tsAtom == "timestamp") {
-        type = DataType::TIMESTAMP;
-    } else if(tsAtom == "any") {
-        type = DataType::ANY;
-    } else {
-        if(throwIfInvalid) {
-            ThrowRuntimeError("Unsupported data type: '" << tsAtom << "'");
-        }
-    }
-
-    return type;
+        // Used to be 'binary', now it's 'varchar'
+        if (t == "varchar")
+                return DataType::Type::STRING;
+        else if (t == "sint64")
+                return DataType::Type::INT;
+        else if (t == "double")
+                return DataType::Type::DOUBLE;
+        else if (t == "boolean")
+                return DataType::Type::BOOL;
+        else if (t == "timestamp")
+                return DataType::Type::TIMESTAMP;
+        else
+                ThrowRuntimeError("Unsupported data type: '" << t << "'");
 }
 
-/**.......................................................................
- * Convert from a Time-Series type-specifier to a supported C-style DataType
- */
-DataType::Type Extractor::tsAtomToCtype(std::string tsAtom, bool throwIfInvalid)
-{
-    return convertToSupportedCType(tsAtomToType(tsAtom, throwIfInvalid));
-}
 
 /**.......................................................................
  * Return the data type of the requested field.
  */
-DataType::Type Extractor::cTypeOf(std::string fieldName)
+DataType::Type
+Extractor::cTypeOf(const std::string& fieldName) const
 {
-    //------------------------------------------------------------
-    // If we haven't already parsed a value, we don't know what type
-    // this field is
-    //------------------------------------------------------------
+        auto found = field_types_.find(fieldName);
+        if (found == field_types_.end())
+                return DataType::Type::UNSUPPORTED;
 
-    if(!typesParsed_)
-        return DataType::UNKNOWN;
-
-    //------------------------------------------------------------
-    // If the field wasn't found, we don't know what type this field is
-    //------------------------------------------------------------
-
-    if(field_types_.find(fieldName) == field_types_.end())
-        return DataType::UNKNOWN;
-
-    //------------------------------------------------------------
-    // Else retrieve the stored type, potentially converting to a
-    // supported type if this is not a native type we support
-    //------------------------------------------------------------
-
-    DataType::Type type = field_types_[fieldName];
-    return convertToSupportedCType(type);
+        return convertToSupportedCType(found->second);
 }
 
 /**.......................................................................
  * Convert a field of type 'type' to one of the C-types we support
  */
-DataType::Type Extractor::convertToSupportedCType(DataType::Type type)
+DataType::Type
+Extractor::convertToSupportedCType(const DataType::Type type)
 {
-        //------------------------------------------------------------
-        // Else try to upcast to a supported type.
-        //------------------------------------------------------------
-
         switch (type) {
 
-                //------------------------------------------------------------
-                // Basic types are supported
-                //------------------------------------------------------------
-
-        case DataType::DOUBLE:
-        case DataType::STRING:
-        case DataType::INT:
-        case DataType::UINT:
-        case DataType::BOOL:
+        case DataType::Type::DOUBLE:
+        case DataType::Type::STRING:
+        case DataType::Type::INT:
+        case DataType::Type::BOOL:
                 return type;
 
-                //------------------------------------------------------------
-                // Until clarified, timestamps are treated as uint64_t
-                //------------------------------------------------------------
-
-        case DataType::TIMESTAMP:
-                return DataType::UINT;
-
-                //------------------------------------------------------------
-                // All other types are treated as opaque binaries
-                //------------------------------------------------------------
+        case DataType::Type::TIMESTAMP:
+                return DataType::Type::INT;
 
         default:
                 ThrowRuntimeError("Refusing to convert type " << type);
         }
 }
 
-void Extractor::printMap(std::map<std::string, DataType::Type>& keyTypeMap)
-{
-        for(auto iter : keyTypeMap) {
-                COUT("'" << iter.first << "' " << convertToSupportedCType(iter.second));
-                FOUT("'" << iter.first << "' " << convertToSupportedCType(iter.second));
-        }
-}
-
-/**.......................................................................
- * Return the data type of the operands to a binary operator
- */
-DataType::Type Extractor::cTypeOf(ErlNifEnv* env, ERL_NIF_TERM oper1, ERL_NIF_TERM oper2, bool throwIfInvalid)
-{
-    DataType::Type type1 = cTypeOf(env, oper1, throwIfInvalid);
-    DataType::Type type2 = cTypeOf(env, oper2, throwIfInvalid);
-
-    //------------------------------------------------------------
-    // If both are const expressions, default to double comparisons
-    //------------------------------------------------------------
-
-    if(type1 == DataType::CONST && type2 == DataType::CONST)
-        return DataType::DOUBLE;
-
-    //------------------------------------------------------------
-    // If either is unknown, return unknown -- we can't compare anything
-    //------------------------------------------------------------
-
-    else if(type1 == DataType::UNKNOWN || type2 == DataType::UNKNOWN)
-        return DataType::UNKNOWN;
-
-    //------------------------------------------------------------
-    // If both are non-const, then they had better match for comparisons
-    //------------------------------------------------------------
-
-    else if(type1 != DataType::CONST && type2 != DataType::CONST && (type1 != type2))
-        return DataType::UNKNOWN;
-
-    //------------------------------------------------------------
-    // Else return whichever type is non-const
-    //------------------------------------------------------------
-
-    else
-        return type1 == DataType::CONST ? type2 : type1;
-}
-
 /**.......................................................................
  * Parse the field name out of a tuple, and return its type.
  *
- * Old-style tuples were of the form:
- *
  *    {field, "fieldname"} or {const, val}
  *
- * New-style tuples should be of the form:
- *
- *    {field, "fieldname", type} or {const, val}
- *
  */
-DataType::Type Extractor::cTypeOf(ErlNifEnv* env, ERL_NIF_TERM tuple, bool throwIfInvalid)
+DataType::Type
+Extractor::cTypeOf(ErlNifEnv* env, const ERL_NIF_TERM& tuple) const
 {
-    int arity=0;
-    const ERL_NIF_TERM* op_args=0;
+        int _arity;
+        const ERL_NIF_TERM* op_args;
 
-    //------------------------------------------------------------
-    // ErlUtil::get methods will throw if the args are not the correct
-    // type.  Capture this and return UNKNOWN if the tuple is
-    // malformed
-    //------------------------------------------------------------
+        if (enif_get_tuple(env, tuple, &_arity, &op_args)) {
 
-    try {
-        if (enif_get_tuple(env, tuple, &arity, &op_args)) {
+                std::string op = ErlUtil::getAtom(env, op_args[0]);
 
-            std::string op = ErlUtil::getAtom(env, op_args[0]);
-            std::string fieldName;
+                if (op == eleveldb::filter::CONST_OP)
+                        return ErlUtil::typeOf(env, op_args[1]);
 
-            if (!(op == eleveldb::filter::FIELD_OP || op == eleveldb::filter::CONST_OP)) {
-                if(throwIfInvalid)
-                    ThrowRuntimeError("Invalid operand type: '" << op << "' while parsing expression: '"
-                                      << ErlUtil::formatTerm(env, tuple) << "'");
-            }
-
-            if(op == eleveldb::filter::FIELD_OP)
-                fieldName = ErlUtil::getBinaryAsString(env, op_args[1]);
-
-            //------------------------------------------------------------
-            // Check 2-tuples
-            //------------------------------------------------------------
-
-            if(arity == 2) {
-
-                // If this is a constant expression, we defer to the field value
-                // against which we will be comparing it
-
-                if(op == eleveldb::filter::CONST_OP)
-                    return DataType::CONST;
-
-                // Else a field -- parse the field name, and return the type of
-                // the datum for that field
-
-                if(op == eleveldb::filter::FIELD_OP)
-                    return cTypeOf(fieldName);
-
-            //------------------------------------------------------------
-            // Check 3-tuples
-            //------------------------------------------------------------
-
-            } else if(arity == 3) {
-
-                // If this is a constant expression, and a type has
-                // been specified, we still defer to the field value
-                // against which we will be comparing it
-
-                if(op == eleveldb::filter::CONST_OP) {
-                    return DataType::CONST;
-                } else {
-                    std::string type = ErlUtil::getAtom(env, op_args[2]);
-
-                    // Store the type as-specified
-
-                    expr_field_specs_[fieldName] = tsAtomToType(type, throwIfInvalid);
-
-                    // Overwrite any inferences we may have made from parsing the data
-
-                    DataType::Type specType = tsAtomToCtype(type, throwIfInvalid);
-
-                    field_types_[fieldName] = specType;
-
-                    // NB: Now that we are not inferring data types
-                    // from the decoded data, set expr_fields_ to the
-                    // explicit type, for use during data extraction
-
-                    expr_fields_[fieldName] = specType;
-
-                    // And return the type
-
-                    return tsAtomToCtype(type, throwIfInvalid);
+                if (op == eleveldb::filter::FIELD_OP) {
+                        auto ret = cTypeOf(ErlUtil::getBinaryAsString(env, op_args[1]));
+                        return ret;
                 }
-            }
+
+                // else, it's a binary operator that evaluates to boolean
+                return DataType::Type::BOOL;
         }
 
-        if(throwIfInvalid)
-            ThrowRuntimeError("Invalid field or const specifier: " << ErlUtil::formatTerm(env, tuple));
-
-    } catch(std::runtime_error& err) {
-        if(throwIfInvalid)
-            throw err;
-    }
-
-    return DataType::UNKNOWN;
+        ThrowRuntimeError("Invalid field or const specifier: " << ErlUtil::formatTerm(env, tuple));
 }
+
 
 /**.......................................................................
  * Given the start of a key data binary, return the start and size of the
  * contents portion of an encoded riak object
  */
-void Extractor::seekToRiakObjectContents(const char* data, size_t size,
-                                         const char** contentsPtr, size_t* contentsSize)
+void
+Extractor::seekToRiakObjectContents(const char* data, size_t size,
+                                    const char** contentsPtr, size_t* contentsSize)
 {
         const char* ptr = data;
 
-        //------------------------------------------------------------
         // Skip the magic number and version
-        //------------------------------------------------------------
+        unsigned char magic = (*ptr++);
+        unsigned char vers  = (*ptr++);
 
-        unsigned char magic    = (*ptr++);
-        unsigned char vers     = (*ptr++);
-
-        if(!(magic == 53 && vers == 1))
+        if (!(magic == 53 && vers == 1))
                 ThrowRuntimeError("Riak object contents can only be inspected for magic = 53 and v1 encoding");
 
-        //------------------------------------------------------------
         // Skip the vclock len and vclock contents
-        //------------------------------------------------------------
-
         unsigned int vClockLen = ntohl(*((unsigned int*)ptr));
         ptr += 4;
         ptr += vClockLen;
 
         unsigned char encMagic = (*ptr++);
 
-        //------------------------------------------------------------
         // The next byte should now be the msgpack magic number (2).
         // Check that it is
-        //------------------------------------------------------------
-
-        if(!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
+        if (!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
                 ThrowRuntimeError("This record uses an unsupported encoding");
 
-        //------------------------------------------------------------
         // Skip the sibling count
-        //------------------------------------------------------------
-
-        unsigned int sibCount =  ntohl(*((unsigned int*)ptr));
+        unsigned int sibCount =  ntohl(*(unsigned int*)ptr);
         ptr += 4;
 
-        if(sibCount != 1)
+        if (sibCount != 1)
                 ThrowRuntimeError("Unexpected sibling count for time-series data: " << sibCount);
 
-        //------------------------------------------------------------
-        // Now we are on to the first (and only) sibling.  Get the length of
+        // Now we are on to the first (and only) sibling. Get the length of
         // the data contents for this sibling
-        //------------------------------------------------------------
-
         unsigned int valLen =  ntohl(*((unsigned int*)ptr));
         ptr += 4;
 
-        //------------------------------------------------------------
         // Set the passed ptr pointing to the start of the contents for this
         // object, and set the returned length to be just the length of the
         // contents
-        //------------------------------------------------------------
-
         ptr++;  // TypeTag
         ptr++;  // extra encoding marker
 
@@ -381,11 +172,8 @@ void Extractor::seekToRiakObjectContents(const char* data, size_t size,
 }
 
 
-//=======================================================================
-// Methods of Msgpack extractor
-//=======================================================================
-
-void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<bool>* root)
+void
+ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<bool>* root)
 {
         auto oh = msgpack::unpack(data, size);
         auto obj = oh.get();
@@ -399,7 +187,7 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
                 {
                         bool v;
                         oi.convert(v);
-                        root->set_value(key, (void*)&v, DataType::BOOL);
+                        root->set_value(key, &v, DataType::Type::BOOL);
                 }
                 break;
                 case msgpack::type::NEGATIVE_INTEGER:
@@ -407,7 +195,7 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
                 {
                         int64_t v;
                         oi.convert(v);
-                        root->set_value(key, (void*)&v, DataType::INT);
+                        root->set_value(key, &v, DataType::Type::INT);
                 }
                 break;
                 case msgpack::type::FLOAT32:
@@ -415,21 +203,27 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
                         float v;
                         oi.convert(v);
                         double vi (v);
-                        root->set_value(key, (void*)&vi, DataType::DOUBLE);
+                        root->set_value(key, &vi, DataType::Type::DOUBLE);
                 }
                 break;
                 case msgpack::type::FLOAT64:
                 {
                         double v;
                         oi.convert(v);
-                        root->set_value(key, (void*)&v, DataType::DOUBLE);
+                        root->set_value(key, &v, DataType::Type::DOUBLE);
                 }
                 break;
                 case msgpack::type::STR:
                 {
                         std::string v;
                         oi.convert(v);
-                        root->set_value(key, (void*)&v, DataType::STRING);
+                        root->set_value(key, &v, DataType::Type::STRING);
+                }
+                break;
+                case msgpack::type::ARRAY:
+                {
+                        int dummy = 0;
+                        root->set_value(key, &dummy, DataType::Type::NIL);
                 }
                 break;
                 default:
@@ -437,13 +231,4 @@ void ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<boo
                 }
                 ++ki;
         }
-}
-
-/**.......................................................................
- * Read through a msgpack-encoded object, parsing the data types for
- * each field we encounter
- */
-void ExtractorMsgpack::parseTypes(const char* data, size_t size)
-{
-        field_types_ = std::move(CmpUtil::parseMap(data, size));
 }

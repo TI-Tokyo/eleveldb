@@ -109,7 +109,7 @@ WorkTask::operator()()
         if (result.is_set())
         {
                 ErlNifPid pid;
-                if(0 != enif_get_local_pid(this->local_env(), this->pid(), &pid))
+                if (0 != enif_get_local_pid(this->local_env(), this->pid(), &pid))
                 {
                         /* Assemble a notification of the following form:
                            { PID CallerHandle, ERL_NIF_TERM result } */
@@ -269,8 +269,8 @@ MoveTask::DoWork()
 
         case PREFETCH:
         case PREFETCH_STOP:
-        case NEXT:  if(itr->Valid()) itr->Next(); break;
-        case PREV:  if(itr->Valid()) itr->Prev(); break;
+        case NEXT:  if (itr->Valid()) itr->Next(); break;
+        case PREV:  if (itr->Valid()) itr->Prev(); break;
 
         case SEEK:
         {
@@ -316,7 +316,7 @@ MoveTask::DoWork()
                 // setup next race for the response
                 m_Itr->m_Wrap.m_HandoffAtomic = 0;
 
-                if(itr && itr->Valid()) {
+                if (itr && itr->Valid()) {
                         if (PREFETCH == action && m_Itr->m_Wrap.m_PrefetchStarted)
                                 m_ResubmitWork = true;
 
@@ -437,7 +437,7 @@ DestroyTask::DoWork()
 {
         leveldb::Status status = leveldb::DestroyDB(db_name, *open_options);
 
-        if(!status.ok())
+        if (!status.ok())
                 return error_tuple(local_env(), ATOM_ERROR_DB_DESTROY, status);
 
         return work_result(ATOM_OK);
@@ -448,7 +448,7 @@ DestroyTask::DoWork()
  * RangeScanTask::SyncObject
  */
 
-RangeScanTask::SyncObject::SyncObject(const RangeScanOptions & opts)
+RangeScanTask::SyncObject::SyncObject(const RangeScanOptions& opts)
         : max_bytes_(opts.max_unacked_bytes),
           low_bytes_(opts.low_bytes),
           num_bytes_(0),
@@ -552,8 +552,8 @@ bool RangeScanTask::SyncObject::IsConsumerDead() const {
 RangeScanTask::RangeScanTask(ErlNifEnv * caller_env,
                              ERL_NIF_TERM caller_ref,
                              DbObjectPtr_t & db_handle,
-                             const std::string & start_key,
-                             const std::string * end_key,
+                             const std::string& start_key,
+                             const std::string* end_key,
                              RangeScanOptions & options,
                              SyncObject * sync_obj)
         : WorkTask(caller_env, caller_ref, db_handle),
@@ -563,7 +563,7 @@ RangeScanTask::RangeScanTask(ErlNifEnv * caller_env,
           sync_obj_(sync_obj),
           range_filter_(nullptr)
 {
-        if(!sync_obj_)
+        if (!sync_obj_)
                 ThrowRuntimeError("Constructor was called with nullptr SyncObject pointer");
 
         if (end_key)
@@ -735,16 +735,16 @@ work_result RangeScanTask::DoWork()
                                         c_cur, value.size(), &c_cur, &c_size);
 
                                 if (!range_filter_) {
-                                        extractor.parseTypes(c_cur, c_size);
-                                        range_filter_ = parse_range_filter_opts(
+                                        extractor.parseTypes(env, options_.fieldTypes_);
+                                        range_filter_ = eleveldb::parse_range_filter_opts(
                                                 options_.env_,
                                                 options_.rangeFilterSpec_,
-                                                extractor, true);
+                                                extractor);
                                 }
 
                                 extractor.extract(c_cur, c_size, range_filter_);
 
-                                filter_passed = range_filter_->evaluate();
+                                filter_passed = range_filter_->evaluate().is_true();
 
                                 //------------------------------------------------------------
                                 // Trap errors thrown during filter parsing or value
@@ -759,10 +759,7 @@ work_result RangeScanTask::DoWork()
                                 // useful, if it were ever allowed to propagate up to
                                 // the user by the erlang layer.
 
-                                os << err.what() << std::endl << "While processing key: "
-                                   << ErlUtil::formatAsString((unsigned char*)key.data(), key.size());
-
-                                sendMsg(msg_env, ATOM_STREAMING_ERROR, pid, os.str());
+                                sendMsg(msg_env, ATOM_STREAMING_ERROR, pid, err.what());
 
                                 if (binaryAllocated)
                                         enif_release_binary(&bin);
@@ -787,7 +784,7 @@ work_result RangeScanTask::DoWork()
                         // Allocate the output data array if this is the first data
                         // (i.e., if out_offset == 0)
 
-                        if(out_offset == 0) {
+                        if (out_offset == 0) {
                                 enif_alloc_binary(initial_bin_size, &bin);
                                 binaryAllocated = true;
                         }
@@ -797,7 +794,7 @@ work_result RangeScanTask::DoWork()
                         // reached the batch max anyway and will send it right away
                         //------------------------------------------------------------
 
-                        if(next_offset > bin.size)
+                        if (next_offset > bin.size)
                                 enif_realloc_binary(&bin, next_offset);
 
                         char * const out = (char*)bin.data + out_offset;
@@ -815,9 +812,9 @@ work_result RangeScanTask::DoWork()
                         // the batch, possibly shrink the binary and send it
                         //------------------------------------------------------------
 
-                        if(out_offset >= options_.max_batch_bytes) {
+                        if (out_offset >= options_.max_batch_bytes) {
 
-                                if(out_offset != bin.size)
+                                if (out_offset != bin.size)
                                         enif_realloc_binary(&bin, out_offset);
 
                                 send_streaming_batch(&pid, msg_env, caller_ref_term, &bin);
@@ -850,7 +847,7 @@ work_result RangeScanTask::DoWork()
 
         sendMsg(msg_env, ATOM_STREAMING_END, pid);
 
-        if(binaryAllocated)
+        if (binaryAllocated)
                 enif_release_binary(&bin);
 
         enif_free_env(msg_env);
@@ -860,7 +857,7 @@ work_result RangeScanTask::DoWork()
 
 ErlNifResourceType* RangeScanTask::sync_handle_resource_ = nullptr;
 
-void RangeScanTask::CreateSyncHandleType(ErlNifEnv * env)
+void RangeScanTask::CreateSyncHandleType(ErlNifEnv* env)
 {
         auto flags = (ErlNifResourceFlags)(ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER);
         sync_handle_resource_ =
@@ -870,7 +867,7 @@ void RangeScanTask::CreateSyncHandleType(ErlNifEnv * env)
 }
 
 RangeScanTask::SyncHandle*
-RangeScanTask::CreateSyncHandle(const RangeScanOptions & options)
+RangeScanTask::CreateSyncHandle(const RangeScanOptions& options)
 {
         SyncObject* sync_obj = new SyncObject(options);
         sync_obj->RefInc();
@@ -882,7 +879,7 @@ RangeScanTask::CreateSyncHandle(const RangeScanOptions & options)
 }
 
 RangeScanTask::SyncHandle*
-RangeScanTask::RetrieveSyncHandle(ErlNifEnv * env, ERL_NIF_TERM term)
+RangeScanTask::RetrieveSyncHandle(ErlNifEnv* env, ERL_NIF_TERM term)
 {
         void* resource_ptr;
         if (enif_get_resource(env, term, sync_handle_resource_, &resource_ptr))
@@ -891,7 +888,7 @@ RangeScanTask::RetrieveSyncHandle(ErlNifEnv * env, ERL_NIF_TERM term)
                 return nullptr;
 }
 
-void RangeScanTask::SyncHandleResourceCleanup(ErlNifEnv * env, void * arg)
+void RangeScanTask::SyncHandleResourceCleanup(ErlNifEnv* env, void* arg)
 {
         SyncHandle* handle = (SyncHandle*)arg;
         if (handle->sync_obj_) {
@@ -900,6 +897,5 @@ void RangeScanTask::SyncHandleResourceCleanup(ErlNifEnv * env, void * arg)
                 handle->sync_obj_ = nullptr;
         }
 }
-
 
 } // namespace eleveldb

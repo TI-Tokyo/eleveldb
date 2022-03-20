@@ -1,13 +1,11 @@
-#ifndef extractor_h
-#define extractor_h
+#ifndef EXTRACTOR_H
+#define EXTRACTOR_H
 
 #include <stdint.h>
 #include <map>
 #include <string>
-#include <set>
 
 #include "filter.h"
-#include "cmp.h"
 #include "cmp_mem_access.h"
 
 #include "erl_nif.h"
@@ -21,50 +19,34 @@
 
 class Extractor {
 public:
+        Extractor() {}
+        virtual ~Extractor() {}
 
-    Extractor();
-    virtual ~Extractor();
+        // Get the DataType::Type corresponding to the ts atom
+        static eleveldb::DataType::Type tsAtomToType(const std::string&);
 
-    void add_field(std::string field);
+        // Convert from ts atom to supported C-type
+        static eleveldb::DataType::Type tsAtomToCtype(const std::string& type)
+                {
+                        return convertToSupportedCType(
+                                tsAtomToType(type));
+                }
 
-    // Get the DataType::Type corresponding to the ts atom
+        eleveldb::DataType::Type cTypeOf(ErlNifEnv*,
+                                         const ERL_NIF_TERM& operand) const;
 
-    eleveldb::DataType::Type tsAtomToType(std::string tsType, bool throwIfInvalid);
+        eleveldb::DataType::Type cTypeOf(const std::string& field) const;
 
-    // Convert from ts atom to supported C-type
+        void parseTypes(ErlNifEnv*, const ERL_NIF_TERM&);
 
-    eleveldb::DataType::Type tsAtomToCtype(std::string type, bool throwIfInvalid);
-
-    eleveldb::DataType::Type cTypeOf(ErlNifEnv* env, ERL_NIF_TERM operand,
-                                     bool throwIfInvalid);
-
-    eleveldb::DataType::Type cTypeOf(ErlNifEnv* env,
-                                     ERL_NIF_TERM operand1,
-                                     ERL_NIF_TERM operand2,
-                                     bool throwIfInvalid);
-
-    eleveldb::DataType::Type cTypeOf(std::string field);
-
-    virtual void parseTypes(const char *data, size_t size) = 0;
-    virtual void extract(const char *data, size_t size, ExpressionNode<bool>* root) = 0;
-
-    // void extractRiakObject(const char *data, size_t size, ExpressionNode<bool>* root);
-    // void parseRiakObjectTypes(const char *data, size_t size);
+        virtual void extract(const char *data, size_t size, ExpressionNode<bool>* root) = 0;
 
         static void seekToRiakObjectContents(const char* data, size_t size,
                                              const char** contentsPtr, size_t* contentsSize);
 
-    DataType::Type convertToSupportedCType(DataType::Type type);
-    void printMap(std::map<std::string, DataType::Type>& keyTypeMap);
+        static DataType::Type convertToSupportedCType(DataType::Type type);
 
-    std::map<std::string, eleveldb::DataType::Type> expr_fields_;
-    std::map<std::string, eleveldb::DataType::Type> expr_field_specs_;
-    std::map<std::string, eleveldb::DataType::Type> field_types_;
-
-    unsigned nField_;
-
-protected:
-    bool typesParsed_ = false;
+        std::map<std::string, eleveldb::DataType::Type> field_types_;
 };
 
 //=======================================================================
@@ -79,7 +61,6 @@ public:
         ExtractorMsgpack() {}
         virtual ~ExtractorMsgpack() {}
 
-        void parseTypes(const char *data, size_t size);
         void extract(const char *data, size_t size, ExpressionNode<bool>* root);
 
         void setBinaryVal(ExpressionNode<bool>* root, std::string& key,

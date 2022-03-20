@@ -23,7 +23,7 @@ using namespace eleveldb;
         return name(buf_, &index_);             \
     }                                           \
                                                 \
-    retType EiUtil::name(char* buf, int* index) \
+    retType EiUtil::name(const char* buf, int* index) \
     {                                           \
         body;                                   \
     }
@@ -75,16 +75,13 @@ EiUtil::doubleConvMap_ = EiUtil::constructDoubleMap();
 
 #define CONSTRUCT_EI_CONV_MAP(typeTo)                                   \
     /* int types */                                                     \
-    convMap[DataType::INT]  = EiUtil::convert<typeTo, int64_t>;         \
+    convMap[DataType::Type::INT]  = EiUtil::convert<typeTo, int64_t>;   \
                                                                         \
     /* float types */                                                   \
-    convMap[DataType::DOUBLE] = EiUtil::convert<typeTo, double>;        \
+    convMap[DataType::Type::DOUBLE] = EiUtil::convert<typeTo, double>;  \
                                                                         \
     /* Boolean types */                                                 \
-    convMap[DataType::BOOL]   = EiUtil::convert<typeTo, bool>;          \
-                                                                        \
-    /* TTB supports BIGs, which are variable-size integers */           \
-    convMap[DataType::SMALL_BIG] = EiUtil::convert<typeTo, Big>;        \
+    convMap[DataType::Type::BOOL]   = EiUtil::convert<typeTo, bool>;    \
 
 EiUtil::EiUtil()
 {
@@ -441,7 +438,7 @@ FN_DEF(bool, isBig,
        return isBig(getType(buf, index));
     )
 
-bool EiUtil::isBig(char* buf, int* index, unsigned& size, bool& isSigned)
+bool EiUtil::isBig(const char* buf, int* index, unsigned& size, bool& isSigned)
 {
     if(isBig(getType(buf, index))) {
         size     = (unsigned)((unsigned char)buf[*index+1]);
@@ -556,44 +553,41 @@ FN_DEF(DataType::Type, typeOf,
        return typeOf(getType(buf, index), buf, index);
     )
 
-DataType::Type EiUtil::typeOf(int type, char* buf, int* index)
+DataType::Type EiUtil::typeOf(int type, const char* buf, int* index)
 {
-    switch(type) {
-    case ERL_SMALL_INTEGER_EXT:
-    case ERL_INTEGER_EXT:
-        return DataType::INT;
-        break;
-    case ERL_FLOAT_EXT:
-    case NEW_FLOAT_EXT:
-        return DataType::DOUBLE;
-        break;
-    case ERL_ATOM_EXT:
-    case ERL_SMALL_ATOM_EXT:
-    case ERL_ATOM_UTF8_EXT:
-    case ERL_SMALL_ATOM_UTF8_EXT:
-    {
-        if(buf == 0 || index == 0)
-            THROW_ERR;
+        switch(type) {
+        case ERL_SMALL_INTEGER_EXT:
+        case ERL_INTEGER_EXT:
+                return DataType::Type::INT;
+                break;
+        case ERL_FLOAT_EXT:
+        case NEW_FLOAT_EXT:
+                return DataType::Type::DOUBLE;
+                break;
+        case ERL_ATOM_EXT:
+        case ERL_SMALL_ATOM_EXT:
+        case ERL_ATOM_UTF8_EXT:
+        case ERL_SMALL_ATOM_UTF8_EXT:
+        {
+                if(buf == 0 || index == 0)
+                        THROW_ERR;
 
-        int prev = *index;
-        if(isBool(buf, index)) {
-            *index = prev;
-            return DataType::BOOL;
-        } else {
-            return DataType::STRING;
+                int prev = *index;
+                if(isBool(buf, index)) {
+                        *index = prev;
+                        return DataType::Type::BOOL;
+                } else {
+                        return DataType::Type::STRING;
+                }
         }
-    }
-    break;
-    case ERL_STRING_EXT:
-        return DataType::STRING;
         break;
-    case ERL_SMALL_BIG_EXT:
-        return DataType::SMALL_BIG;
-        break;
-    default:
-        return DataType::UNKNOWN;
-        break;
-    }
+        case ERL_STRING_EXT:
+                return DataType::Type::STRING;
+                break;
+        default:
+                return DataType::Type::UNSUPPORTED;
+                break;
+        }
 }
 
 /**.......................................................................
@@ -608,7 +602,7 @@ FN_DEF(void, skipLastReadObject,
        return skipNext(buf, index, nHead, nData);
     )
 
-void EiUtil::skipNext(char* buf, int* index, unsigned& nHeaderBytes, unsigned& nDataBytes)
+void EiUtil::skipNext(const char* buf, int* index, unsigned& nHeaderBytes, unsigned& nDataBytes)
 {
        unsigned int opcode = (unsigned int)((unsigned char)buf[*index]);
 

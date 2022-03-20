@@ -20,8 +20,8 @@
 //
 // -------------------------------------------------------------------
 
-#ifndef INCL_WORKITEMS_H
-#define INCL_WORKITEMS_H
+#ifndef WORKITEMS_H
+#define WORKITEMS_H
 
 #include <stdint.h>
 
@@ -364,6 +364,8 @@ struct RangeScanOptions {
 
         // Filter options
         ERL_NIF_TERM rangeFilterSpec_;
+        ERL_NIF_TERM fieldTypes_;
+
         ErlNifEnv* env_ = nullptr;
         bool useRangeFilter_ = false;
 };
@@ -378,13 +380,13 @@ public:
 
         class SyncObject : public RefObject {
         public:
-                explicit SyncObject(const RangeScanOptions & opts);
+                explicit SyncObject(const RangeScanOptions& opts);
                 ~SyncObject();
 
                 // True if only one side (producer or consumer) alive.
                 inline bool SingleOwned()
                         {
-                                return( 1 == GetRefCount());
+                                return 1 == GetRefCount();
                         }
 
                 // Adds number of bytes sent to count.
@@ -467,4 +469,4 @@ private:
 
 } // namespace eleveldb
 
-#endif  // INCL_WORKITEMS_H
+#endif
