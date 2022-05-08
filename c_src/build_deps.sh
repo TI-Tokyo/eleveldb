@@ -8,11 +8,13 @@ if [ `uname -s` = 'SunOS' -a "${POSIX_SHELL}" != "true" ]; then
 fi
 unset POSIX_SHELL # clear it so if we invoke other scripts, they run as ksh as well
 
-LEVELDB_VSN="2.0.36"
+LEVELDB_VSN="2.0.37"
 MSGPACK_TAG="cpp-4.1.1"
 SNAPPY_VSN="1.0.4"
 
 set -e
+
+BASEDIR="$PWD"
 
 if [ `basename $PWD` != "c_src" ]; then
     # originally "pushd c_src" of bash
@@ -20,7 +22,13 @@ if [ `basename $PWD` != "c_src" ]; then
     cd c_src
 fi
 
-BASEDIR="$PWD"
+case `uname -m` in
+    aarch64)
+        if [ `uname` = "Linux" ]; then
+            CFLAGS="$CFLAGS -D__aarch64__"
+            CXXFLAGS="$CXXFLAGS -D__aarch64__"
+        fi
+esac
 
 # detecting gmake and if exists use it
 # if not use make
