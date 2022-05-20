@@ -4,3 +4,4 @@ snappy*/
 system/
 *.o
 *.d
+snappy-*.tar.gz

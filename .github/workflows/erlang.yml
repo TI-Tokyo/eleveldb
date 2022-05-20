@@ -1,0 +1,32 @@
+name: Erlang CI
+
+on:
+  push:
+    branches: [ develop, riak_ts-develop ]
+  pull_request:
+    branches: [ develop, riak_ts-develop ]
+
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        otp:
+          - "24.3.4"
+          - "23.3.4.14"
+          - "22.3.4.26"
+
+    container:
+      image: erlang:${{ matrix.otp }}
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Compile
+        run: apt-get update && apt-get install -y cmake && make
+      - name: Run tests
+        run: apt-get update && apt-get install -y cmake libc6-dev && make check
