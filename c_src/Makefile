@@ -1,20 +1,29 @@
 LEVELDB_VSN ?= "2.0.38rc3"
 SNAPPY_VSN ?= "1.1.9"
+MSGPACK_TAG ?= "cpp-4.1.1"
+
 BASEDIR = $(shell pwd)
 
 LDFLAGS := $(LDFLAGS) -L$(BASEDIR)/system/lib
 LD_LIBRARY_PATH := $(BASEDIR)/system/lib:$(LD_LIBRARY_PATH)
-CFLAGS := $(CFLAGS) -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/leveldb/include -fPIC
-CXXFLAGS := $(CXXFLAGS) -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/leveldb/include -fPIC
+EXTRA_FLAGS = -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/leveldb/include -I $(BASEDIR)/msgpack/include -fPIC
+CFLAGS := $(CFLAGS) $(EXTRA_FLAGS)
+CXXFLAGS := $(CXXFLAGS) $(EXTRA_FLAGS)
 
 get-deps:
 	if [ ! -r snappy-$(SNAPPY_VSN).tar.gz ]; then \
-	    wget -O snappy-$(SNAPPY_VSN).tar.gz https://github.com/google/snappy/archive/refs/tags/$(SNAPPY_VSN).tar.gz; \
-	fi
+	    wget -q -O snappy-$(SNAPPY_VSN).tar.gz https://github.com/google/snappy/archive/refs/tags/$(SNAPPY_VSN).tar.gz && \
+	    tar xzf snappy-$(SNAPPY_VSN).tar.gz; \
+	fi && \
 	if [ ! -d leveldb ]; then \
 	    git clone https://github.com/TI-Tokyo/leveldb && \
 	    (cd leveldb && git checkout $(LEVELDB_VSN)) && \
 	    (cd leveldb && git submodule update --init); \
+	fi && \
+	if [ ! -d msgpack ]; then \
+	    wget -q -O msgpack-$(MSGPACK_TAG).tar.gz https://github.com/msgpack/msgpack-c/archive/refs/tags/$(MSGPACK_TAG).tar.gz && \
+	    tar xzf msgpack-$(MSGPACK_TAG).tar.gz && \
+	    mv msgpack-c-$(MSGPACK_TAG) msgpack; \
 	fi
 
 compile: get-deps snappy ldb
@@ -27,7 +36,6 @@ ldb:
 snappy: system/lib/libsnappy.a
 
 system/lib/libsnappy.a:
-	tar -xzf snappy-$(SNAPPY_VSN).tar.gz && \
 	(cd snappy-$(SNAPPY_VSN) && \
 	 git submodule update --init && \
 	 if [ -r autogen.sh ]; then \

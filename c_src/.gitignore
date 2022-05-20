@@ -5,3 +5,4 @@ system/
 *.o
 *.d
 snappy-*.tar.gz
+msgpack-*.tar.gz
