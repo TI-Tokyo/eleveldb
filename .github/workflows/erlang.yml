@@ -27,6 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Compile
-        run: apt-get update && apt-get install -y cmake && make
+        run: apt-get update && apt-get install -y cmake libboost-dev && make
       - name: Run tests
-        run: apt-get update && apt-get install -y cmake libc6-dev && make check
+        run: apt-get update && apt-get install -y cmake libboost-dev libc6-dev && make check
