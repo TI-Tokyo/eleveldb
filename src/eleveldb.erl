@@ -79,6 +79,9 @@
     delete_test_dir/1,
     terminal_format/2
 ]).
+
+-include_lib("kernel/include/logger.hrl").
+
 -ifdef(EQC).
 -export([prop_put_delete/0, prop_put_delete_always/0]).
 -include_lib("eqc/include/eqc.hrl").
@@ -344,7 +347,7 @@ do_streaming_batch(Bin, Fun, Acc) ->
 do_streaming_fold(StreamRef = {MsgRef, AckRef}, Fun, Acc) ->
     receive
         {streaming_error, MsgRef, ErrMsg} ->
-            lager:error("Streaming error: ~s", [ErrMsg]),
+            logger:error("Streaming error: ~s", [ErrMsg]),
             Acc;
         {streaming_end, MsgRef} ->
             Acc;
