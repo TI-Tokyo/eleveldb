@@ -142,13 +142,6 @@ Extractor::seekToRiakObjectContents(const char* data, size_t size,
         ptr += 4;
         ptr += vClockLen;
 
-        unsigned char encMagic = (*ptr++);
-
-        // The next byte should now be the msgpack magic number (2).
-        // Check that it is
-        if (!(encMagic == MSGPACK_MAGIC || encMagic == ERLANG_MAGIC))
-                ThrowRuntimeError("This record uses an unsupported encoding");
-
         // Skip the sibling count
         unsigned int sibCount =  ntohl(*(unsigned int*)ptr);
         ptr += 4;
