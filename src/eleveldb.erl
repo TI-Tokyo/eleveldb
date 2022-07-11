@@ -172,8 +172,8 @@ init() ->
                           clear] | binary().
 
 -type streaming_option() :: {max_batch_bytes, pos_integer()} |
-                            {max_unacked_bytes, pos_integer() |
-                            {fill_cache, boolean()}}.
+                            {max_unacked_bytes, pos_integer()} |
+                            {fill_cache, boolean()}.
 
 -type streaming_options() :: [streaming_option()].
 
