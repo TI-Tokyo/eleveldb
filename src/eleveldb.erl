@@ -163,7 +163,7 @@ init() ->
 
 -type itr_options() :: [read_option() | itr_option()].
 
--type read_options() :: [read_option() | itr_option()].
+-type read_options() :: itr_options().
 
 -type write_options() :: [{sync, boolean()}].
 
@@ -171,30 +171,23 @@ init() ->
                           {delete, Key::binary()} |
                           clear] | binary().
 
--type streaming_option() :: {max_batch_bytes, pos_integer()} |
-                            {max_unacked_bytes, pos_integer()} |
-                            {fill_cache, boolean()}.
-
--type streaming_options() :: [streaming_option()].
-
--type fold_method() :: iterator | streaming.
-
--type fold_options() :: [read_option() |
-                         {fold_method, fold_method()} |
+-type fold_options() :: [{verify_checksums, boolean()} |
+                         {fill_cache, boolean()} |
+                         {fold_method, iterator | streaming} |
                          {start_key, binary()} |
                          {end_key, binary() | undefined} |
                          {start_inclusive, boolean()} |
                          {end_inclusive, boolean()} |
                          {limit, pos_integer()} |
-                         streaming_option()].
+                         {max_batch_bytes, pos_integer()} |
+                         {max_unacked_bytes, pos_integer()} |
+                         {fill_cache, boolean()}].
 
 -type iterator_action() :: first | last | next | prev | prefetch | prefetch_stop | binary().
 
 -opaque db_ref() :: binary().
 
 -opaque itr_ref() :: binary().
-
--type stream_ref() :: {reference(), binary()}.
 
 encode(Val, timestamp) ->
     <<Val:64>>;
@@ -320,9 +313,6 @@ iterator_close(IRef) ->
 async_iterator_close(_CallerRef, _IRef) ->
     erlang:nif_error({error, not_loaded}).
 
--spec streaming_start(db_ref(), binary(), binary() | undefined,
-                      streaming_options()) ->
-    {ok, stream_ref()} | {error, any()}.
 streaming_start(_DBRef, _StartKey, _EndKey, _Opts) ->
     erlang:nif_error({error, not_loaded}).
 
