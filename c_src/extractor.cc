@@ -40,6 +40,8 @@ Extractor::tsAtomToType(const std::string& t)
         // Used to be 'binary', now it's 'varchar'
         if (t == "varchar")
                 return DataType::Type::STRING;
+        else if (t == "blob")
+                return DataType::Type::STRING;
         else if (t == "sint64")
                 return DataType::Type::INT;
         else if (t == "double")
