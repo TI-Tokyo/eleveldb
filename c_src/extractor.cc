@@ -160,7 +160,6 @@ Extractor::seekToRiakObjectContents(const char* data, size_t size,
         // object, and set the returned length to be just the length of the
         // contents
         ptr++;  // TypeTag
-        ptr++;  // extra encoding marker
 
         *contentsPtr  = ptr;
         *contentsSize = valLen;
