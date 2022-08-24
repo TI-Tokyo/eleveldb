@@ -207,13 +207,14 @@ ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<bool>* r
                         root->set_value(key, &v, DataType::Type::DOUBLE);
                 }
                 break;
-                case msgpack::type::STR:
+                case msgpack::type::BIN:
                 {
                         std::string v;
                         oi.convert(v);
                         root->set_value(key, &v, DataType::Type::STRING);
                 }
                 break;
+                case msgpack::type::STR:
                 case msgpack::type::ARRAY:
                 {
                         int dummy = 0;
