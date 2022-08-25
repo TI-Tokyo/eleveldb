@@ -167,7 +167,7 @@ Extractor::seekToRiakObjectContents(const char* data, size_t size,
 
 
 void
-ExtractorMsgpack::extract(const char* data, size_t size, ExpressionNode<bool>* root)
+ExtractorMsgpack::extract(const char* data, const size_t size, ExpressionNode<bool>* root)
 {
         auto oh = msgpack::unpack(data, size);
         auto obj = oh.get();
