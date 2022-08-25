@@ -6,7 +6,7 @@ BASEDIR = $(shell pwd)
 
 LDFLAGS := $(LDFLAGS) -L$(BASEDIR)/system/lib
 LD_LIBRARY_PATH := $(BASEDIR)/system/lib:$(LD_LIBRARY_PATH)
-EXTRA_FLAGS = -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/leveldb/include -I $(BASEDIR)/msgpack/include -fPIC
+EXTRA_FLAGS = -std=c++11 -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/leveldb/include -I $(BASEDIR)/msgpack/include  -DMSGPACK_NO_BOOST -fPIC
 CFLAGS := $(CFLAGS) $(EXTRA_FLAGS)
 CXXFLAGS := $(CXXFLAGS) $(EXTRA_FLAGS)
 
