@@ -39,7 +39,7 @@ system/lib/libsnappy.a:
 	(cd snappy-$(SNAPPY_VSN) && \
 	 git submodule update --init && \
 	 if [ -r autogen.sh ]; then \
-	   ./autogen.sh && ./configure --prefix=$(BASEDIR)/system && make && make install; \
+	   ./autogen.sh && ./configure --prefix=$(BASEDIR)/system && gmake && gmake install; \
 	 else \
 	   mkdir build && cd build && \
 	   mkdir -p $(BASEDIR)/system && \
@@ -47,7 +47,7 @@ system/lib/libsnappy.a:
 	         -D CMAKE_INSTALL_PREFIX=$(BASEDIR)/system \
 	     ..; \
 	  fi && \
-	  make && make install)
+	  gmake && gmake install)
 	mv system/lib64 system/lib || true
 
 clean:
