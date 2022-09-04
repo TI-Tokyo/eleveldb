@@ -15,7 +15,7 @@ clean:
 cover: test
 	$(REBAR) cover
 
-test: compile
+test: get-deps
 	$(MAKE) -C c_src test
 	$(REBAR) as test do eunit
 
