@@ -1,17 +1,18 @@
-LEVELDB_VSN ?= "2.0.38"
-SNAPPY_VSN ?= "1.1.9"
-MSGPACK_TAG ?= "cpp-4.1.1"
+LEVELDB_VSN ?= 2.0.38
+SNAPPY_VSN ?= 1.1.9
+MSGPACK_TAG ?= cpp-4.1.1
 
-BASEDIR = $(shell pwd)
+MAKE := gmake
+BASEDIR := ${PWD}
 
 LDFLAGS := $(LDFLAGS) -L$(BASEDIR)/system/lib
 LD_LIBRARY_PATH := $(BASEDIR)/system/lib:$(LD_LIBRARY_PATH)
-EXTRA_FLAGS = -std=c++11 -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/leveldb/include -I $(BASEDIR)/msgpack/include  -DMSGPACK_NO_BOOST -fPIC
+EXTRA_FLAGS = -std=c++11 -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/leveldb/include -fPIC
 CFLAGS := $(CFLAGS) $(EXTRA_FLAGS)
 CXXFLAGS := $(CXXFLAGS) $(EXTRA_FLAGS)
 
 get-deps:
-	if [ ! -r snappy-$(SNAPPY_VSN).tar.gz ]; then \
+	if [ ! -d snappy-$(SNAPPY_VSN) ]; then \
 	    wget -q -O snappy-$(SNAPPY_VSN).tar.gz https://github.com/google/snappy/archive/refs/tags/$(SNAPPY_VSN).tar.gz && \
 	    tar xzf snappy-$(SNAPPY_VSN).tar.gz; \
 	fi && \
@@ -30,8 +31,7 @@ compile: get-deps snappy ldb
 	cp leveldb/perf_dump leveldb/sst_rewrite leveldb/sst_scan leveldb/leveldb_repair ../priv
 
 ldb:
-	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb all
-	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb tools
+	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy -lpthread" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb all tools
 
 snappy: system/lib/libsnappy.a
 
@@ -39,15 +39,15 @@ system/lib/libsnappy.a:
 	(cd snappy-$(SNAPPY_VSN) && \
 	 git submodule update --init && \
 	 if [ -r autogen.sh ]; then \
-	   ./autogen.sh && ./configure --prefix=$(BASEDIR)/system && make && make install; \
+	   ./autogen.sh && ./configure --prefix=$(BASEDIR)/system && $(MAKE) && $(MAKE) install; \
 	 else \
-	   mkdir build && cd build && \
+	   rm -rf build && mkdir build && cd build && \
 	   mkdir -p $(BASEDIR)/system && \
 	   cmake -D SNAPPY_BUILD_TESTS=0 -D SNAPPY_BUILD_BENCHMARKS=0 \
 	         -D CMAKE_INSTALL_PREFIX=$(BASEDIR)/system \
 	     ..; \
 	  fi && \
-	  make && make install)
+	  $(MAKE) && $(MAKE) install)
 	mv system/lib64 system/lib || true
 
 clean:
