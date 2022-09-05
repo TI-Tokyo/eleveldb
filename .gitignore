@@ -1,5 +1,5 @@
-.eunit/*
-priv/*
-ebin
-*~
-_build
+.eunit/
+priv/
+_build/
+ebin/
+rebar.lock
