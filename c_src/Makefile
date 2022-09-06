@@ -4,7 +4,7 @@ LEVELDB_VSN ?= 2.0.38
 SNAPPY_VSN ?= 1.1.9
 MSGPACK_TAG ?= cpp-4.1.1
 
-BASEDIR := ${PWD}
+BASEDIR := $(CURDIR)
 
 LDFLAGS := $(LDFLAGS) -L$(BASEDIR)/system/lib
 LD_LIBRARY_PATH := $(BASEDIR)/system/lib:$(LD_LIBRARY_PATH)
@@ -32,13 +32,16 @@ get-deps:
 compile: get-deps ldb
 	cp leveldb/perf_dump leveldb/sst_rewrite leveldb/sst_scan leveldb/leveldb_repair ../priv
 
-ldb: snappy
-	echo "BASEDIR: $(BASEDIR)"
-	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy -lpthread" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" \
-	    -C leveldb all tools && \
-	  mv leveldb/libleveldb.a system/lib \
+ldb: system/lib/libleveldb.a
 
-snappy:
+system/lib/libleveldb.a: snappy
+	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy -lpthread" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb all
+	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy -lpthread" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb tools
+	mv leveldb/libleveldb.a system/lib
+
+snappy: system/lib/libsnappy.a
+
+system/lib/libsnappy.a:
 	(cd snappy-$(SNAPPY_VSN) && \
 	 if [ -r autogen.sh ]; then \
 	   ./autogen.sh && ./configure --prefix=$(BASEDIR)/system && $(MAKE) && $(MAKE) install; \
@@ -53,7 +56,7 @@ snappy:
 
 clean:
 	$(MAKE) -C leveldb clean
-	rm -rf system snappy-$(SNAPPY_VSN)/build
+	rm -rf system/lib/* snappy-$(SNAPPY_VSN)/build
 
 test: compile
 	$(MAKE) CXXFLAGS="$(CXXFLAGS) -Wno-narrowing" LDFLAGS="$(LDFLAGS) -lsnappy -lpthread" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb test
