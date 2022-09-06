@@ -4,9 +4,7 @@ LEVELDB_VSN ?= 2.0.38
 SNAPPY_VSN ?= 1.1.9
 MSGPACK_TAG ?= cpp-4.1.1
 
-MAKE ?= make
-
-BASEDIR := $(shell pwd)
+BASEDIR := ${PWD}
 
 LDFLAGS := $(LDFLAGS) -L$(BASEDIR)/system/lib
 LD_LIBRARY_PATH := $(BASEDIR)/system/lib:$(LD_LIBRARY_PATH)
