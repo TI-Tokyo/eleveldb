@@ -1,4 +1,4 @@
-LEVELDB_VSN ?= "2.0.38"
+LEVELDB_VSN ?= "nhse-develop-3.0"
 C_SRC_DIR := $(shell pwd)
 PROJECT_DIR := $(abspath $(C_SRC_DIR)/..)
 TARGET_DIR := $(PROJECT_DIR)/priv/
@@ -37,7 +37,7 @@ get-deps:
 	git config --global --add safe.directory /__w/eleveldb/eleveldb
 	echo "ubuntu-latest image with otp-22, are you happy now?"
 	if [ ! -d leveldb ]; then \
-	    git clone --depth=1 --branch=$(LEVELDB_VSN) https://github.com/basho/leveldb && \
+	    git clone --depth=1 --branch=$(LEVELDB_VSN) https://github.com/nhs-riak/leveldb && \
 	    (cd leveldb && git submodule update --depth 1 --init); \
 	fi
 
