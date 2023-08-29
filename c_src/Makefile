@@ -1,5 +1,5 @@
 export LEVELDB_VSN ?= "nhse-develop-3.0"
-export SNAPPY_VSN ?= "1.1.9"
+export SNAPPY_VSN ?= "1.1.10"
 BASEDIR = $(shell pwd)
 
 export LDFLAGS := $(LDFLAGS) -L$(BASEDIR)/system/lib
