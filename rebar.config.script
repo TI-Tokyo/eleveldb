@@ -6,7 +6,8 @@
 %% actually running.
 case os:type() of
     {unix,darwin} ->
-        Opt = " -mmacosx-version-min=10.8 -stdlib=libc++ -std=c++11",
+        OSXVersion = re:replace(os:cmd("sw_vers -productVersion"), "[\n]", "", [global, {return, list}]),
+        Opt = " -mmacosx-version-min=" ++ OSXVersion ++ " -stdlib=libc++ -std=c++11",
         [Mjr|_] = string:tokens(os:cmd("/usr/bin/uname -r"), "."),
         Major = list_to_integer(Mjr),
         if
