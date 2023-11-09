@@ -1,4 +1,4 @@
-export LEVELDB_VSN ?= "nhse-d30-eldb275"
+export LEVELDB_VSN ?= "nhse-develop-3.0"
 SNAPPY_VSN ?= "1.1.9"
 BASEDIR = $(shell pwd)
 
