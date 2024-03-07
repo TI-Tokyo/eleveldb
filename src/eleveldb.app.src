@@ -5,7 +5,8 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  os_mon
                  ]},
   {env, [
          %% what percent of total memory should go to
