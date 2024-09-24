@@ -12,7 +12,7 @@ get-deps:
 	    wget -O snappy-$(SNAPPY_VSN).tar.gz https://github.com/google/snappy/archive/refs/tags/$(SNAPPY_VSN).tar.gz; \
 	fi
 	if [ ! -d leveldb ]; then \
-	    git clone https://github.com/nhs-riak/leveldb && \
+	    git clone https://github.com/OpenRiak/leveldb && \
 	    (cd leveldb && git checkout $(LEVELDB_VSN)) && \
 	    (cd leveldb && git submodule update --init); \
 	fi
