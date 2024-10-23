@@ -1,6 +1,6 @@
 # `eleveldb` - Erlang bindings to LevelDB datastore 
 
-[![Build Status](https://secure.travis-ci.org/basho/eleveldb.png?branch=master)](http://travis-ci.org/basho/eleveldb)
+![eleveldb OpenRiak Status](https://github.com/OpenRiak/eleveldb/actions/workflows/erlang.yml/badge.svg?branch=openriak-3.2)
 
 This repository follows the Basho standard for branch management 
 as of November 28, 2013.  The standard is found here:
