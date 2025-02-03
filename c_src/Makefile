@@ -10,6 +10,7 @@ export CXXFLAGS := $(CXXFLAGS) -I $(BASEDIR)/system/include -I. -I $(BASEDIR)/le
 get-deps:
 	if [ ! -r snappy-$(SNAPPY_VSN).tar.gz ]; then \
 	    wget -O snappy-$(SNAPPY_VSN).tar.gz https://github.com/google/snappy/archive/refs/tags/$(SNAPPY_VSN).tar.gz; \
+	    tar -xzf snappy-$(SNAPPY_VSN).tar.gz; \
 	fi
 	if [ ! -d leveldb ]; then \
 	    git clone https://github.com/OpenRiak/leveldb && \
@@ -24,10 +25,9 @@ ldb:
 	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb all
 	$(MAKE) LDFLAGS="$(LDFLAGS) -lsnappy" LD_LIBRARY_PATH="$(LD_LIBRARY_PATH)" -C leveldb tools
 
-snappy: system/lib/libsnappy.a
+snappy: get-deps system/lib/libsnappy.a
 
 system/lib/libsnappy.a:
-	tar -xzf snappy-$(SNAPPY_VSN).tar.gz && \
 	(cd snappy-$(SNAPPY_VSN) && \
 	 git submodule update --init && \
 	 if [ -r autogen.sh ]; then \
